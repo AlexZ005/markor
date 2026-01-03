@@ -34,9 +34,6 @@ public class TodoTxtTask {
     // Static members - date format helpers, regex generators & constants
     //
 
-    public static final SimpleDateFormat DATEF_YYYY_MM_DD = new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
-    public static final int DATEF_YYYY_MM_DD_LEN = "yyyy-MM-dd".length();
-
     /**
      * Returns a SimpleDateFormat for the configured todo date format.
      * Falls back to {@link #DATE_FORMAT} if settings are not available or the configured pattern is invalid.
@@ -49,7 +46,7 @@ public class TodoTxtTask {
             return new SimpleDateFormat(fmt, Locale.ROOT);
         } catch (IllegalArgumentException e) {
             // Fallback: return a default format instead of throwing
-            return DATEF_YYYY_MM_DD;
+            return new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
         }
     }
 
