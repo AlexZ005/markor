@@ -42,8 +42,8 @@ public class TodoTxtBasicSyntaxHighlighter extends SyntaxHighlighterBase {
         createSpanForMatches(TodoTxtTask.PATTERN_PRIORITY_F, new HighlightSpan().setForeColor(COLOR_PRIORITY_F).setBold(true));
         createStyleSpanForMatches(TodoTxtTask.PATTERN_PRIORITY_G_TO_Z, Typeface.BOLD);
 
-        createColorSpanForMatches(TodoTxtTask.PATTERN_CREATION_DATE, _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
-        createColorSpanForMatches(TodoTxtTask.PATTERN_DUE_DATE, COLOR_PRIORITY_A, 2, 3);
+        createColorSpanForMatches(TodoTxtTask.getPatternCreationDate(), _isDarkMode ? COLOR_DATE_DARK : COLOR_DATE_LIGHT, 1);
+        createColorSpanForMatches(TodoTxtTask.getPatternDueDate(), COLOR_PRIORITY_A, 2, 3);
 
         // Strike out done tasks
         // Note - as we now sort by start, projects, contexts, tags and due date will be highlighted for done tasks

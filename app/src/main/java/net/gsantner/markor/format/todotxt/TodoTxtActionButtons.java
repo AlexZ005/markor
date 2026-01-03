@@ -408,14 +408,14 @@ public class TodoTxtActionButtons extends ActionButtonBase {
             final String newDue = "due:" + TodoTxtTask.getDateFormat().format(fmtCal.getTime());
             runRegexReplaceAction(
                     // Replace due date
-                    new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$1" + newDue + "$4"),
+                    new ReplacePattern(TodoTxtTask.getPatternDueDate(), "$1" + newDue + "$4"),
                     // Add due date to end if none already exists. Will correctly handle trailing whitespace.
                     new ReplacePattern("\\s*$", " " + newDue)
             );
         };
 
         final DatePickerDialog.OnClickListener clear = (dialog, which) -> {
-            runRegexReplaceAction(new ReplacePattern(TodoTxtTask.PATTERN_DUE_DATE, "$4"));
+            runRegexReplaceAction(new ReplacePattern(TodoTxtTask.getPatternDueDate(), "$4"));
         };
 
         new DateFragment()

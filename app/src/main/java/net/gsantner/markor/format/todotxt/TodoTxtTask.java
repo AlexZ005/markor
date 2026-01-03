@@ -49,15 +49,94 @@ public class TodoTxtTask {
             return new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT);
         }
     }
+    // Date regex builder & cached patterns (dynamically built from settings)
+    private static volatile String _cachedDateFormat = null;
+    private static volatile String _cachedPtDateRegex = null;
+    private static volatile Pattern _cachedPatternDate = null;
+    private static volatile Pattern _cachedPatternDueDate = null;
+    private static volatile Pattern _cachedPatternCompletionDate = null;
+    private static volatile Pattern _cachedPatternCreationDate = null;
 
-    public static final String PT_DATE = "\\d{4}-\\d{2}-\\d{2}(?:[ T]\\d{2}:\\d{2}(?::\\d{2})?)?";
+    private static synchronized void ensureDatePatterns() {
+        final String fmt = ApplicationObject.settings() != null ? ApplicationObject.settings().getTodoDateFormat() : DATE_FORMAT;
+        final String effectiveFmt = fmt == null ? DATE_FORMAT : fmt;
+        if (!effectiveFmt.equals(_cachedDateFormat)) {
+            _cachedDateFormat = effectiveFmt;
+            _cachedPtDateRegex = buildRegexFromFormat(effectiveFmt);
+            _cachedPatternDate = Pattern.compile("(?:^|\\s|:)(" + _cachedPtDateRegex + ")(?:$|\\s)");
+            _cachedPatternDueDate = Pattern.compile("(^|\\s)(due:)(" + _cachedPtDateRegex + ")(\\s|$)");
+            _cachedPatternCompletionDate = Pattern.compile("(?:^|\\n)(?:[Xx] )(" + _cachedPtDateRegex + ")?");
+            _cachedPatternCreationDate = Pattern.compile("(?:^|\\n)(?:\\([A-Za-z]\\)\\s)?(?:[Xx] " + _cachedPtDateRegex + " )?(" + _cachedPtDateRegex + ")");
+        }
+    }
+
+    private static String buildRegexFromFormat(final String fmt) {
+        // Map common tokens to regex:
+        // yyyy -> \d{4}, MM -> \d{2}, dd -> \d{2}, HH -> \d{2}, mm -> \d{2}, ss -> \d{2}
+        // Any other characters (separators) are escaped literally.
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < fmt.length(); ) {
+            if (fmt.startsWith("yyyy", i)) {
+                out.append("\\d{4}");
+                i += 4;
+            } else if (fmt.startsWith("MM", i)) {
+                out.append("\\d{2}");
+                i += 2;
+            } else if (fmt.startsWith("dd", i)) {
+                out.append("\\d{2}");
+                i += 2;
+            } else if (fmt.startsWith("HH", i) || fmt.startsWith("hh", i)) {
+                out.append("\\d{2}");
+                i += 2;
+            } else if (fmt.startsWith("mm", i)) {
+                out.append("\\d{2}");
+                i += 2;
+            } else if (fmt.startsWith("ss", i)) {
+                out.append("\\d{2}");
+                i += 2;
+            } else {
+                // Escape non-token char
+                final char c = fmt.charAt(i);
+                if (".\\+*?\[^]$(){}=!<>|:-".indexOf(c) >= 0) {
+                    out.append('\\');
+                }
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    public static String getPtDateRegex() {
+        ensureDatePatterns();
+        return _cachedPtDateRegex;
+    }
+
+    public static Pattern getPatternDate() {
+        ensureDatePatterns();
+        return _cachedPatternDate;
+    }
+
+    public static Pattern getPatternDueDate() {
+        ensureDatePatterns();
+        return _cachedPatternDueDate;
+    }
+
+    public static Pattern getPatternCompletionDate() {
+        ensureDatePatterns();
+        return _cachedPatternCompletionDate;
+    }
+
+    public static Pattern getPatternCreationDate() {
+        ensureDatePatterns();
+        return _cachedPatternCreationDate;
+    }
+
     public static final Pattern PATTERN_PROJECTS = Pattern.compile("(?:^|\\s)(?:\\++)(\\S+)");
     public static final Pattern PATTERN_CONTEXTS = Pattern.compile("(?:^|\\s)(?:\\@+)(\\S+)");
     public static final Pattern PATTERN_DONE = Pattern.compile("(?m)(^[Xx]) (.*)$");
-    public static final Pattern PATTERN_DATE = Pattern.compile("(?:^|\\s|:)(" + PT_DATE + ")(?:$|\\s)");
     public static final Pattern PATTERN_KEY_VALUE_PAIRS__TAG_ONLY = Pattern.compile("(?i)([a-z]+):([a-z0-9_-]+)");
     public static final Pattern PATTERN_KEY_VALUE_PAIRS = Pattern.compile("(?i)((?:[a-z]+):(?:[a-z0-9_-]+))");
-    public static final Pattern PATTERN_DUE_DATE = Pattern.compile("(^|\\s)(due:)(" + PT_DATE + ")(\\s|$)");
     public static final Pattern PATTERN_PRIORITY_ANY = Pattern.compile("(?:^|\\n)\\(([A-Za-z])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_A = Pattern.compile("(?:^|\\n)\\(([Aa])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_B = Pattern.compile("(?:^|\\n)\\(([Bb])\\)\\s");
@@ -66,8 +145,6 @@ public class TodoTxtTask {
     public static final Pattern PATTERN_PRIORITY_E = Pattern.compile("(?:^|\\n)\\(([Ee])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_F = Pattern.compile("(?:^|\\n)\\(([Ff])\\)\\s");
     public static final Pattern PATTERN_PRIORITY_G_TO_Z = Pattern.compile("(?:^|\\n)\\(([g-zG-Z])\\)\\s");
-    public static final Pattern PATTERN_COMPLETION_DATE = Pattern.compile("(?:^|\\n)(?:[Xx] )(" + PT_DATE + ")?");
-    public static final Pattern PATTERN_CREATION_DATE = Pattern.compile("(?:^|\\n)(?:\\([A-Za-z]\\)\\s)?(?:[Xx] " + PT_DATE + " )?(" + PT_DATE + ")");
 
     public static final char PRIORITY_NONE = '~';
 
@@ -179,9 +256,9 @@ public class TodoTxtTask {
         if (description == null) {
             // The description is what is left when all structured parts of the task are removed
             description = getLine()
-                    .replaceAll(PATTERN_COMPLETION_DATE.pattern(), "")
+                    .replaceAll(getPatternCompletionDate().pattern(), "")
                     .replaceAll(PATTERN_PRIORITY_ANY.pattern(), "")
-                    .replaceAll(PATTERN_CREATION_DATE.pattern(), "")
+                    .replaceAll(getPatternCreationDate().pattern(), "")
                     .replaceAll(PATTERN_CONTEXTS.pattern(), "")
                     .replaceAll(PATTERN_PROJECTS.pattern(), "")
                     .replaceAll(PATTERN_KEY_VALUE_PAIRS.pattern(), "");
@@ -217,7 +294,7 @@ public class TodoTxtTask {
 
     public String getCreationDate(final String defaultValue) {
         if (creationDate == null) {
-            creationDate = parseOneValueOrDefault(line, PATTERN_CREATION_DATE, defaultValue);
+            creationDate = parseOneValueOrDefault(line, getPatternCreationDate(), defaultValue);
         }
         return creationDate;
     }
@@ -228,7 +305,7 @@ public class TodoTxtTask {
 
     public String getDueDate(final String defaultValue) {
         if (dueDate == null) {
-            dueDate = parseOneValueOrDefault(line, PATTERN_DUE_DATE, 3, defaultValue);
+            dueDate = parseOneValueOrDefault(line, getPatternDueDate(), 3, defaultValue);
         }
         return dueDate;
     }
@@ -252,7 +329,7 @@ public class TodoTxtTask {
 
     public String getCompletionDate(final String defaultValue) {
         if (completionDate == null) {
-            completionDate = parseOneValueOrDefault(line, PATTERN_COMPLETION_DATE, defaultValue);
+            completionDate = parseOneValueOrDefault(line, getPatternCompletionDate(), defaultValue);
         }
         return completionDate;
     }
