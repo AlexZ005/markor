@@ -1170,4 +1170,44 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
     public void setGitActiveRepoPath(final String path) {
         setString(R.string.pref_key__git_active_repo_path, path == null ? "" : path);
     }
+
+    // Identity used as author and committer of commits made from the Git tab. Empty until the commit
+    // dialog has asked for it once; it is also written into each repository's own .git/config.
+    public String getGitAuthorName() {
+        return getString(R.string.pref_key__git_author_name, "");
+    }
+
+    public void setGitAuthorName(final String name) {
+        setString(R.string.pref_key__git_author_name, name == null ? "" : name.trim());
+    }
+
+    public String getGitAuthorEmail() {
+        return getString(R.string.pref_key__git_author_email, "");
+    }
+
+    public void setGitAuthorEmail(final String email) {
+        setString(R.string.pref_key__git_author_email, email == null ? "" : email.trim());
+    }
+
+    public boolean isGitAuthorSet() {
+        return !getGitAuthorName().isEmpty() && !getGitAuthorEmail().isEmpty();
+    }
+
+    // Repositories whose user was already asked whether Markor's .app/ folder should be gitignored,
+    // so the suggestion is shown at most once per repository however the answer went.
+    public boolean isGitIgnoreSuggested(final String repoPath) {
+        return repoPath != null && !repoPath.isEmpty()
+                && getStringList(R.string.pref_key__git_ignore_suggested_paths).contains(repoPath);
+    }
+
+    public void setGitIgnoreSuggested(final String repoPath) {
+        if (repoPath == null || repoPath.isEmpty()) {
+            return;
+        }
+        final ArrayList<String> paths = getStringList(R.string.pref_key__git_ignore_suggested_paths);
+        if (!paths.contains(repoPath)) {
+            paths.add(repoPath);
+            setStringList(R.string.pref_key__git_ignore_suggested_paths, paths);
+        }
+    }
 }
