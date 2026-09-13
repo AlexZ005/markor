@@ -14,11 +14,17 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.widget.Toast;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceGroup;
 
+import net.gsantner.markor.BuildConfig;
 import net.gsantner.markor.R;
+import net.gsantner.markor.git.GitRepoConfig;
+import net.gsantner.markor.git.GitSettingsStore;
+import net.gsantner.markor.git.ui.CloneDialog;
+import net.gsantner.markor.git.ui.RemoteSetupDialog;
 import net.gsantner.markor.model.AppSettings;
 import net.gsantner.opoc.format.GsSimpleMarkdownParser;
 import net.gsantner.opoc.frontend.base.GsPreferenceFragmentBase;
@@ -59,6 +65,20 @@ public class MoreInfoFragment extends GsPreferenceFragmentBase<AppSettings> {
         Activity activity = getActivity();
         if (isAdded() && preference.hasKey()) {
             switch (keyResId) {
+                case R.string.pref_key__git_test__clone: {
+                    CloneDialog.newInstance().show(getParentFragmentManager(), CloneDialog.FRAGMENT_TAG);
+                    return true;
+                }
+                case R.string.pref_key__git_test__remote_setup: {
+                    final GitRepoConfig active = GitSettingsStore.newRegistry().getActive();
+                    if (active == null) {
+                        Toast.makeText(getContext(), "No repository yet - clone one first", Toast.LENGTH_SHORT).show();
+                    } else {
+                        RemoteSetupDialog.newInstance(active.getPath())
+                                .show(getParentFragmentManager(), RemoteSetupDialog.FRAGMENT_TAG);
+                    }
+                    return true;
+                }
                 case R.string.pref_key__more_info__app: {
                     _cu.openWebpageInExternalBrowser(getContext(), getString(R.string.app_web_url));
                     return true;
@@ -190,6 +210,11 @@ public class MoreInfoFragment extends GsPreferenceFragmentBase<AppSettings> {
 
         if ((pref = findPreference(R.string.pref_key__more_info__help)) != null) {
             pref.setTitle(getString(R.string.help) + " / FAQ");
+        }
+
+        // Entry points for the Git remote dialogs, in the test build only (roadmap tasks 5.1/5.2).
+        if ((pref = findPreference(R.string.pref_key__git_test__category)) != null) {
+            pref.setVisible(BuildConfig.IS_TEST_BUILD);
         }
     }
 }
