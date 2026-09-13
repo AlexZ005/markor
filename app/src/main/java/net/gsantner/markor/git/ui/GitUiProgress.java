@@ -12,6 +12,7 @@ import net.gsantner.markor.git.GitProgress;
 import net.gsantner.markor.git.GitTaskRunner;
 
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 /**
  * Bridges a {@link GitProgress} — called on the worker thread, often several times per second — to a
@@ -34,13 +35,20 @@ final class GitUiProgress implements GitProgress {
 
     private final GitCancelToken _token;
     private final Listener _listener;
+    private final Executor _callbackExecutor;
 
     private String _lastTask;
     private int _lastPercent = Integer.MIN_VALUE;
 
     GitUiProgress(final GitCancelToken token, final Listener listener) {
+        this(token, listener, GitTaskRunner.mainThreadExecutor());
+    }
+
+    /** @param callbackExecutor where the listener is called; the main thread in the app, direct in tests */
+    GitUiProgress(final GitCancelToken token, final Listener listener, final Executor callbackExecutor) {
         _token = token;
         _listener = listener;
+        _callbackExecutor = callbackExecutor;
     }
 
     @Override
@@ -69,6 +77,6 @@ final class GitUiProgress implements GitProgress {
         }
         _lastTask = task;
         _lastPercent = percent;
-        GitTaskRunner.mainThreadExecutor().execute(() -> _listener.onGitProgress(task, percent));
+        _callbackExecutor.execute(() -> _listener.onGitProgress(task, percent));
     }
 }
