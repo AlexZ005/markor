@@ -44,6 +44,21 @@
         android:key="@string/pref_key__more_info__rate_app"
         android:title="@string/rate_this_app" />
 
+    <!-- Only shown in the flavorAtest build; hidden in MoreInfoFragment.doUpdatePreferences() -->
+    <PreferenceCategory
+        android:key="@string/pref_key__git_test__category"
+        android:title="Git (test build only)"
+        tools:ignore="HardcodedText">
+
+        <Preference
+            android:key="@string/pref_key__git_test__clone"
+            android:title="@string/git_clone__title" />
+
+        <Preference
+            android:key="@string/pref_key__git_test__remote_setup"
+            android:title="@string/git_remote_setup__title" />
+    </PreferenceCategory>
+
     <PreferenceCategory
         android:key="@string/pref_key__more_info__project_team"
         android:title="@string/project_team" />
