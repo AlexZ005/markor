@@ -155,10 +155,14 @@ dependencies {
 
     // Git tab: JGit, pure Java git implementation. License: EDL 1.0 (BSD-3-Clause)
     // https://github.com/eclipse-jgit/jgit -- needs java.nio.file, provided below API 26 by desugaring.
-    // 7.x is compiled with Java records, which D8 cannot desugar inside a dependency (AGP 8.13: "global synthetics consumer"), hence 6.x.
-    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r'
-    // JGit logs through slf4j; a no-op binding keeps it quiet (MIT)
-    implementation 'org.slf4j:slf4j-nop:2.0.18'
+    // Version choice (see doc/adr/0001-jgit-on-android.md):
+    //  - 7.x is compiled with Java records, which D8 cannot desugar inside a dependency (AGP 8.13: "global synthetics consumer").
+    //  - 6.x (Java 11 baseline) dexes, but calls Java 11 library APIs Android only has from API 33 and which desugaring does
+    //    not backport: every operation after init() dies with NoSuchMethodError InputStream.readNBytes(int) on API 26.
+    //  - 5.13.x is the Java 8 security-fix branch and works on API 21 and 26.
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:5.13.5.202508271544-r'
+    // JGit 5.13 logs through slf4j 1.7; a no-op binding keeps it quiet (MIT)
+    implementation 'org.slf4j:slf4j-nop:1.7.36'
     // Core library desugaring with java.nio.file support (Apache 2.0)
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
 
