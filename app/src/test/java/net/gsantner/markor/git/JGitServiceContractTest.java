@@ -83,12 +83,13 @@ public class JGitServiceContractTest {
         }
     }
 
+    /** Remote operations are lane git-core-api's task 2.3; until then they report FAILED instead of throwing. */
     @Test
-    public void stubsReportNotImplementedInsteadOfThrowing() throws Exception {
+    public void remoteStubsReportNotImplementedInsteadOfThrowing() throws Exception {
         final File root = tmp.newFolder("r");
-        try (Git git = Git.init().setDirectory(root).call()) {
-            assertThat(_git.status(root, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.FAILED);
+        try (Git git = Git.init().setDirectory(root).setInitialBranch("main").call()) {
             assertThat(_git.push(root, GitCredentialsSource.NONE, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.FAILED);
+            assertThat(_git.fetch(root, GitCredentialsSource.NONE, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.FAILED);
         }
     }
 
