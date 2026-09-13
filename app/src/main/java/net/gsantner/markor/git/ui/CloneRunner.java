@@ -138,6 +138,17 @@ final class CloneRunner {
     }
 
     /**
+     * Detaches {@code listener} if it is still the current one. Taking the identity into account
+     * matters because a recreated dialog may attach before the old one is stopped; without the check
+     * the old fragment's {@code onStop} would silence the new fragment.
+     */
+    void removeListener(final Listener listener) {
+        if (_listener == listener) {
+            _listener = null;
+        }
+    }
+
+    /**
      * Attaches the observer. A result that arrived while nobody was listening (the dialog was being
      * recreated) is delivered right away, so a clone can never finish unnoticed.
      *
