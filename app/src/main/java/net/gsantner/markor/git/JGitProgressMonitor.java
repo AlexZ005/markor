@@ -76,8 +76,4 @@ final class JGitProgressMonitor implements ProgressMonitor {
     public boolean isCancelled() {
         return _progress.isCancelled();
     }
-
-    @Override
-    public void showDuration(final boolean enabled) {
-    }
 }
