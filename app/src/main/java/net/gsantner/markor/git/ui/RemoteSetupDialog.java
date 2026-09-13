@@ -172,12 +172,19 @@ public class RemoteSetupDialog extends DialogFragment {
         setTesting(true, context.getString(R.string.git_remote__testing));
         final String remoteUrl = url.getUrl();
         GitTaskRunner.get().submit(getRepoPath(),
-                token -> _service.lsRemote(remoteUrl, credentials, new GitUiProgress(token, null)),
+                token -> {
+                    try {
+                        return _service.lsRemote(remoteUrl, credentials, new GitUiProgress(token, null));
+                    } finally {
+                        // In the task, not in the callback: the callback is dropped when the dialog
+                        // is gone (a rotation), and the token must be wiped either way.
+                        if (fixed != null) {
+                            fixed.wipe();
+                        }
+                    }
+                },
                 () -> getDialog() != null,
                 result -> {
-                    if (fixed != null) {
-                        fixed.wipe();
-                    }
                     final Context ctx = getContext();
                     if (ctx == null) {
                         return;
@@ -229,26 +236,36 @@ public class RemoteSetupDialog extends DialogFragment {
         setTesting(true, null);
         final File repoDir = repo.getFile();
         final String remoteUrl = url.getUrl();
+        final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+        final GitRepoRegistry registry = _registry;
+        // Storing happens in the task, right behind the git call, so that a rotation cannot lose the
+        // write half-way through — and so the token is wiped even when the callback is dropped.
         GitTaskRunner.get().submit(repo.getPath(),
-                t -> _service.setRemoteUrl(repoDir, remoteUrl, GitProgress.NONE),
+                t -> {
+                    try {
+                        final GitResult<Void> written = _service.setRemoteUrl(repoDir, remoteUrl, GitProgress.NONE);
+                        if (written.isOk()) {
+                            registry.update(repo.setRemoteUrl(remoteUrl));
+                            GitUiText.saveCredentials(appContext, remoteUrl, username, token);
+                        }
+                        return written;
+                    } finally {
+                        GitUiText.wipe(token);
+                    }
+                },
                 () -> getDialog() != null,
                 result -> {
                     final Context ctx = getContext();
                     if (ctx == null) {
-                        GitUiText.wipe(token);
                         return;
                     }
                     setTesting(false, null);
                     if (!result.isSuccess() || !result.getValue().isOk()) {
-                        GitUiText.wipe(token);
                         showStatus(result.isSuccess()
                                 ? GitUiText.messageFor(ctx, result.getValue())
                                 : ctx.getString(R.string.git_error__generic));
                         return;
                     }
-                    _registry.update(repo.setRemoteUrl(remoteUrl));
-                    GitUiText.saveCredentials(ctx, remoteUrl, username, token);
-                    GitUiText.wipe(token);
                     Toast.makeText(ctx, R.string.git_remote__saved, Toast.LENGTH_SHORT).show();
                     if (_listener != null) {
                         _listener.onRemoteSaved(repo.getPath(), remoteUrl);
