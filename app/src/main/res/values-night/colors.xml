@@ -12,6 +12,8 @@
     <color name="git_diff_add_bg">@color/dark__git_diff_add_bg</color>
     <color name="git_diff_del_bg">@color/dark__git_diff_del_bg</color>
     <color name="git_diff_hunk">@color/dark__git_diff_hunk</color>
+    <color name="git_diff_add_fg">@color/dark__git_diff_add_fg</color>
+    <color name="git_diff_del_fg">@color/dark__git_diff_del_fg</color>
 
     <!-- All values specified only in base colors.xml  -->
 

@@ -95,6 +95,11 @@
             android:parentActivityName=".activity.MainActivity" />
 
         <activity
+            android:name=".git.ui.CommitDetailActivity"
+            android:label="@string/git_commit"
+            android:parentActivityName=".activity.MainActivity" />
+
+        <activity
             android:name=".activity.StoragePermissionActivity"
             android:label="@string/permissions"
             android:parentActivityName=".activity.MainActivity" />
