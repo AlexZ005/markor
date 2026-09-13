@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-    Test-flavour only. Manual entry point for the Git tab's commit dialog; see
-    net.gsantner.markor.git.test.GitCommitDialogTestActivity.
+    Test-flavour only. Manual entry points that never ship in flavorDefault or flavorGplay:
+    - net.gsantner.markor.git.test.GitCommitDialogTestActivity: the Git tab's commit dialog (task 4.1)
+    - net.gsantner.markor.git.spike.GitSpikeActivity: JGit feasibility table (task 1.2), start with
+      adb shell am start -n net.gsantner.markor_test/net.gsantner.markor.git.spike.GitSpikeActivity
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -9,6 +11,11 @@
             android:name="net.gsantner.markor.git.test.GitCommitDialogTestActivity"
             android:exported="true"
             android:label="Git commit dialog (test)"
+            android:theme="@style/AppTheme.Unified" />
+        <activity
+            android:name="net.gsantner.markor.git.spike.GitSpikeActivity"
+            android:exported="true"
+            android:label="Git spike"
             android:theme="@style/AppTheme.Unified" />
     </application>
 </manifest>
