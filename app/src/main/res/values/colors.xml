@@ -19,6 +19,8 @@
     <color name="git_diff_add_bg">@color/light__git_diff_add_bg</color>
     <color name="git_diff_del_bg">@color/light__git_diff_del_bg</color>
     <color name="git_diff_hunk">@color/light__git_diff_hunk</color>
+    <color name="git_diff_add_fg">@color/light__git_diff_add_fg</color>
+    <color name="git_diff_del_fg">@color/light__git_diff_del_fg</color>
 
     <!-- Named colors differing common to day and night -->
     <color name="colorAccent">@color/accent</color>
@@ -40,6 +42,8 @@
     <color name="light__git_diff_add_bg">#3343A047</color>
     <color name="light__git_diff_del_bg">#33E53935</color>
     <color name="light__git_diff_hunk">#0F6F8C</color>
+    <color name="light__git_diff_add_fg">#2E7D32</color>
+    <color name="light__git_diff_del_fg">#C62828</color>
 
     <color name="dark__background">@color/dark_grey</color>
     <color name="dark__primary_text">#DDFFFFFF</color>
@@ -49,6 +53,8 @@
     <color name="dark__git_diff_add_bg">#4D66BB6A</color>
     <color name="dark__git_diff_del_bg">#4DEF5350</color>
     <color name="dark__git_diff_hunk">#68C5DB</color>
+    <color name="dark__git_diff_add_fg">#81C784</color>
+    <color name="dark__git_diff_del_fg">#EF9A9A</color>
 
     <color name="ic_launcher_background">#636363</color>
     <color name="white">#FFFFFFFF</color>
