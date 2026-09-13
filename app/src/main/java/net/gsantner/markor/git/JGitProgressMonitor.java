@@ -10,9 +10,10 @@ package net.gsantner.markor.git;
 import org.eclipse.jgit.lib.ProgressMonitor;
 
 /**
- * Adapts JGit's {@link ProgressMonitor} to {@link GitProgress}: forwards task begin/end, throttles
- * updates to once per percent change (JGit calls {@code update} per object), and forwards
- * cancellation so transfers stop. Package-private; one instance per operation.
+ * Adapts JGit's {@link ProgressMonitor} to {@link GitProgress}: forwards task begin/end (always
+ * balanced, even where JGit skips {@code endTask}), throttles updates to once per percent change
+ * (JGit calls {@code update} per object), and forwards cancellation so transfers stop.
+ * Package-private; one instance per operation.
  */
 final class JGitProgressMonitor implements ProgressMonitor {
     private final GitProgress _progress;
@@ -35,6 +36,10 @@ final class JGitProgressMonitor implements ProgressMonitor {
 
     @Override
     public void beginTask(final String title, final int totalWork) {
+        if (_task != null) {
+            // JGit does not always pair beginTask with endTask; keep the UI's begin/end balanced.
+            endTask();
+        }
         _task = title == null ? "" : title;
         _total = totalWork == ProgressMonitor.UNKNOWN ? GitProgress.UNKNOWN : totalWork;
         _completed = 0;

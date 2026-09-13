@@ -150,8 +150,9 @@ public interface GitService {
      * ({@code git pull [--ff-only|--rebase|--no-rebase]}). A repository without commits is fast-forwarded to the
      * remote branch. Uncommitted changes to files the pull would touch stop it before anything is changed.
      * <p>
-     * When {@code author} is given and the repository configuration has no {@code user.name}/{@code user.email},
-     * they are written there first so that merge commits and rebased commits get a proper committer.
+     * When {@code author} is given it is written to the repository configuration as {@code user.name}/{@code user.email}
+     * (when different) so that merge commits and rebased commits get that committer. When the branch tracks nothing
+     * yet, the upstream is recorded after a successful pull so that {@link #aheadBehind} works.
      *
      * @param strategy    how to integrate when local and remote diverged
      * @param author      committer for merge commits and rebased commits; {@code null} to rely on the repository/global configuration

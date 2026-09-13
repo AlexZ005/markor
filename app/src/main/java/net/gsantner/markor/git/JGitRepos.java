@@ -93,19 +93,13 @@ final class JGitRepos {
                 : branch;
 
         final StoredConfig config = repo.getConfig();
-        String remoteName = null;
+        final String remoteName = remoteFor(repo);
         String upstream = null;
         if (!detached && branch != null) {
-            final BranchConfig branchConfig = new BranchConfig(config, branch);
-            remoteName = branchConfig.getRemote();
-            final String tracking = branchConfig.getTrackingBranch();
+            final String tracking = new BranchConfig(config, branch).getTrackingBranch();
             if (tracking != null) {
                 upstream = Repository.shortenRefName(tracking);
             }
-        }
-        final Set<String> remotes = config.getSubsections(ConfigConstants.CONFIG_REMOTE_SECTION);
-        if (remoteName == null || !remotes.contains(remoteName)) {
-            remoteName = remotes.contains(DEFAULT_REMOTE) ? DEFAULT_REMOTE : (remotes.isEmpty() ? null : remotes.iterator().next());
         }
         final String rawUrl = remoteName == null ? null : config.getString(ConfigConstants.CONFIG_REMOTE_SECTION, remoteName, ConfigConstants.CONFIG_KEY_URL);
         final String remoteUrl = rawUrl == null ? null : sanitizeUrl(rawUrl);
@@ -115,6 +109,44 @@ final class JGitRepos {
 
         return new GitRepoInfo(repo.getWorkTree(), shortBranch, headId == null ? null : headId.name(), detached,
                 mapState(repo.getRepositoryState()), remoteName, remoteUrl, upstream, lastFetch);
+    }
+
+    /**
+     * The remote that pull/push use: the current branch's configured remote when it exists, else
+     * {@code origin}, else the first configured remote.
+     *
+     * @return remote name, or {@code null} when the repository has no remotes
+     */
+    static String remoteFor(final Repository repo) throws IOException {
+        final StoredConfig config = repo.getConfig();
+        final Set<String> remotes = config.getSubsections(ConfigConstants.CONFIG_REMOTE_SECTION);
+        if (remotes.isEmpty()) {
+            return null;
+        }
+        final Ref head = repo.exactRef(Constants.HEAD);
+        if (head != null && head.isSymbolic()) {
+            final String configured = new BranchConfig(config, repo.getBranch()).getRemote();
+            if (configured != null && remotes.contains(configured)) {
+                return configured;
+            }
+        }
+        if (remotes.contains(DEFAULT_REMOTE)) {
+            return DEFAULT_REMOTE;
+        }
+        return remotes.iterator().next();
+    }
+
+    /**
+     * Full name of the remote-tracking ref the branch integrates from: its configured upstream when it
+     * belongs to {@code remote}, otherwise {@code refs/remotes/<remote>/<branch>}.
+     */
+    static String trackingRefFor(final Repository repo, final String branch, final String remote) {
+        final BranchConfig branchConfig = new BranchConfig(repo.getConfig(), branch);
+        final String tracking = branchConfig.getTrackingBranch();
+        if (tracking != null && remote.equals(branchConfig.getRemote())) {
+            return tracking;
+        }
+        return Constants.R_REMOTES + remote + "/" + branch;
     }
 
     static GitRepoState mapState(final RepositoryState state) {
