@@ -1153,4 +1153,21 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
     public boolean getFormatShareAsLink() {
         return getBool(R.string.pref_key__format_share_as_link, true);
     }
+
+    // Git tab (fork feature). The repository list is one JSON string, see GitRepoRegistryCodec.
+    public String getGitRepositoriesJson() {
+        return getString(R.string.pref_key__git_repositories, "");
+    }
+
+    public void setGitRepositoriesJson(final String json) {
+        setString(R.string.pref_key__git_repositories, json == null ? "" : json);
+    }
+
+    public String getGitActiveRepoPath() {
+        return getString(R.string.pref_key__git_active_repo_path, "");
+    }
+
+    public void setGitActiveRepoPath(final String path) {
+        setString(R.string.pref_key__git_active_repo_path, path == null ? "" : path);
+    }
 }
