@@ -217,4 +217,105 @@ public class DiffTextFormatterTest {
         assertThatThrownBy(() -> DiffTextFormatter.format("+a\n", 0, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    // ------------------------------------------------------------------ sliceFile
+
+    private static final String TWO_FILES = ""
+            + "diff --git a/a.md b/a.md\n"
+            + "index 111..222 100644\n"
+            + "--- a/a.md\n"
+            + "+++ b/a.md\n"
+            + "@@ -1 +1 @@\n"
+            + "-a old\n"
+            + "+a new\n"
+            + "diff --git a/sub/b.md b/sub/b.md\n"
+            + "index 333..444 100644\n"
+            + "--- a/sub/b.md\n"
+            + "+++ b/sub/b.md\n"
+            + "@@ -1 +1 @@\n"
+            + "-b old\n"
+            + "+b new\n";
+
+    @Test
+    public void sliceFileReturnsOnlyTheSectionOfTheWantedFile() {
+        final String slice = DiffTextFormatter.sliceFile(TWO_FILES, "sub/b.md");
+
+        assertThat(slice).isEqualTo(""
+                + "diff --git a/sub/b.md b/sub/b.md\n"
+                + "index 333..444 100644\n"
+                + "--- a/sub/b.md\n"
+                + "+++ b/sub/b.md\n"
+                + "@@ -1 +1 @@\n"
+                + "-b old\n"
+                + "+b new");
+        assertThat(DiffTextFormatter.sliceFile(TWO_FILES, "a.md"))
+                .startsWith("diff --git a/a.md b/a.md")
+                .endsWith("+a new")
+                .doesNotContain("b.md");
+    }
+
+    @Test
+    public void sliceFileToleratesLeadingSlashesAndBackslashes() {
+        final String expected = DiffTextFormatter.sliceFile(TWO_FILES, "sub/b.md");
+
+        assertThat(DiffTextFormatter.sliceFile(TWO_FILES, "/sub/b.md")).isEqualTo(expected);
+        assertThat(DiffTextFormatter.sliceFile(TWO_FILES, "sub\\b.md")).isEqualTo(expected);
+        assertThat(expected).isNotEmpty();
+    }
+
+    @Test
+    public void sliceFileFindsADeletedFileWhosePlusHeaderIsDevNull() {
+        final String diff = ""
+                + "diff --git a/gone.md b/gone.md\n"
+                + "deleted file mode 100644\n"
+                + "index 555..000\n"
+                + "--- a/gone.md\n"
+                + "+++ /dev/null\n"
+                + "@@ -1 +0,0 @@\n"
+                + "-bye\n";
+
+        assertThat(DiffTextFormatter.sliceFile(diff, "gone.md")).contains("-bye");
+        assertThat(DiffTextFormatter.sliceFile(diff, "dev/null")).isEmpty();
+    }
+
+    @Test
+    public void sliceFileFindsARenamedFileUnderBothNames() {
+        final String diff = ""
+                + "diff --git a/old.md b/new.md\n"
+                + "similarity index 90%\n"
+                + "rename from old.md\n"
+                + "rename to new.md\n"
+                + "--- a/old.md\n"
+                + "+++ b/new.md\n"
+                + "@@ -1 +1 @@\n"
+                + "-x\n"
+                + "+y\n";
+
+        assertThat(DiffTextFormatter.sliceFile(diff, "new.md")).contains("rename to new.md");
+        assertThat(DiffTextFormatter.sliceFile(diff, "old.md")).contains("rename from old.md");
+    }
+
+    @Test
+    public void sliceFileIgnoresPathsThatOnlyAppearInsideAHunk() {
+        // A hunk body line "+++ b/a.md" must not make the second file's section match.
+        final String diff = ""
+                + "diff --git a/notes.md b/notes.md\n"
+                + "--- a/notes.md\n"
+                + "+++ b/notes.md\n"
+                + "@@ -1 +1,2 @@\n"
+                + " intro\n"
+                + "+++ b/other.md\n";
+
+        assertThat(DiffTextFormatter.sliceFile(diff, "other.md")).isEmpty();
+        assertThat(DiffTextFormatter.sliceFile(diff, "notes.md")).contains("+++ b/other.md");
+    }
+
+    @Test
+    public void sliceFileReturnsEmptyForUnknownOrMissingInput() {
+        assertThat(DiffTextFormatter.sliceFile(TWO_FILES, "nope.md")).isEmpty();
+        assertThat(DiffTextFormatter.sliceFile(TWO_FILES, null)).isEmpty();
+        assertThat(DiffTextFormatter.sliceFile(TWO_FILES, "")).isEmpty();
+        assertThat(DiffTextFormatter.sliceFile(null, "a.md")).isEmpty();
+        assertThat(DiffTextFormatter.sliceFile("", "a.md")).isEmpty();
+    }
 }

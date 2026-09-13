@@ -168,7 +168,6 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="break_page_pdf_print">Break page (PDF/Printing)</string>
     <string name="underline">Underline</string>
 
-
     <string name="underline_hex_color_wether_or_not_to_description__appspecific">Whether to underline hex color codes according to color</string>
     <string name="underline_hex_color_codes">Underline Hex Color Codes</string>
     <string name="insert_current_date_when_starting_new_task">Insert the current date when starting a new task</string>
@@ -245,7 +244,6 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="more_info_and_help">More info and help</string>
     <string name="report_bugs">Report bugs</string>
     <string name="do_you_have_a_question_or_problem">Do you have a question or a problem?</string>
-
 
     <string name="join_community">Join the Community</string>
     <string name="bug_reports_suggest_improvements">Give feedback, report bugs or suggest improvements</string>
@@ -591,4 +589,17 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_error__folder_storage_access">Folders on removable storage cannot hold a git repository. Choose a folder in the internal storage.</string>
     <string name="git_error__folder_not_writable">Cannot write to this folder</string>
     <string name="git_error__repo_unknown">This repository is no longer configured</string>
+    <!-- Git tab: diff viewer and commit detail -->
+    <string name="git_diff">Diff</string>
+    <string name="git_working_tree">Working tree</string>
+
+    <string name="git_diff_truncated">Diff truncated: showing %1$d of %2$d lines</string>
+    <string name="git_copy_diff">Copy diff</string>
+    <string name="git_share_diff">Share diff</string>
+    <string name="git_copied_to_clipboard">Copied to clipboard</string>
+    <string name="git_share_failed">The diff is too large to share as text</string>
+
+    <string name="git_open_current_version">Open current version</string>
+    <string name="git_file_not_in_working_tree">This file does not exist in the working tree</string>
+    <string name="git_binary_file">binary</string>
 </resources>

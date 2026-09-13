@@ -51,6 +51,16 @@ final class GitUiProgress implements GitProgress {
         _callbackExecutor = callbackExecutor;
     }
 
+    /**
+     * Cancellation only, for the read-only screens (diff viewer, commit detail) that show an
+     * indeterminate spinner and have no use for task names or percentages.
+     *
+     * @param token the token {@code GitTaskRunner} handed to the running task; {@code null} never cancels
+     */
+    static GitProgress cancelOnly(final GitCancelToken token) {
+        return token == null ? GitProgress.NONE : new GitUiProgress(token, null);
+    }
+
     @Override
     public void onTaskBegin(final String task, final int totalWork) {
         publish(task, totalWork == UNKNOWN ? UNKNOWN : 0);

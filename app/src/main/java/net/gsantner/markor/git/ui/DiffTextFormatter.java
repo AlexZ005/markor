@@ -210,6 +210,111 @@ public final class DiffTextFormatter {
         return new Formatted(text.toString(), lines, truncated, shown, total);
     }
 
+    /**
+     * Cuts the section of one file out of a multi-file unified diff.
+     * <p>
+     * Needed because {@code GitService.diffForCommit} has no path argument: the commit detail screen
+     * asks for the whole commit and the viewer shows the file the user tapped.
+     *
+     * @param unified full unified diff
+     * @param path    repository-relative path; leading slashes and backslashes are tolerated
+     * @return the {@code diff --git} section belonging to {@code path} (without a trailing line break),
+     * or an empty string when the diff does not touch that file
+     */
+    public static String sliceFile(final String unified, final String path) {
+        if (unified == null || unified.isEmpty() || path == null) {
+            return "";
+        }
+        final String wanted = normalizePath(path);
+        if (wanted.isEmpty()) {
+            return "";
+        }
+
+        final String[] lines = unified.split("\n", -1);
+        final StringBuilder section = new StringBuilder();
+        boolean sectionMatches = false;
+        boolean inHeader = false;
+        final StringBuilder out = new StringBuilder();
+
+        for (int i = 0; i <= lines.length; i++) {
+            final String line = i < lines.length ? lines[i] : null;
+            final boolean startsFile = line != null && (line.startsWith("diff --git ") || line.startsWith("diff --cc "));
+
+            if (line == null || startsFile) {
+                if (sectionMatches && section.length() > 0) {
+                    if (out.length() > 0) {
+                        out.append('\n');
+                    }
+                    out.append(section);
+                }
+                section.setLength(0);
+                sectionMatches = false;
+                inHeader = startsFile;
+                if (line == null) {
+                    break;
+                }
+            }
+
+            if (startsFile) {
+                sectionMatches = mentionsPath(line.substring(line.indexOf(' ', 5) + 1), wanted);
+            } else if (inHeader && line.startsWith("@@")) {
+                inHeader = false;
+            } else if (inHeader && (line.startsWith("--- ") || line.startsWith("+++ "))) {
+                sectionMatches |= mentionsPath(line.substring(4), wanted);
+            }
+
+            if (section.length() > 0) {
+                section.append('\n');
+            }
+            section.append(line);
+        }
+
+        // Trailing empty line from the split of a diff ending in '\n'
+        int end = out.length();
+        while (end > 0 && out.charAt(end - 1) == '\n') {
+            end--;
+        }
+        return out.substring(0, end);
+    }
+
+    /** @return {@code true} when {@code candidates} (a/x b/y, or a single ---/+++ path) names {@code wanted} */
+    private static boolean mentionsPath(final String candidates, final String wanted) {
+        for (final String raw : candidates.split(" ")) {
+            final String candidate = stripDiffPrefix(raw);
+            if (!candidate.isEmpty() && candidate.equals(wanted)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Strips git's {@code a/} / {@code b/} working-tree prefixes and surrounding quotes. */
+    private static String stripDiffPrefix(final String raw) {
+        String s = raw.trim();
+        if (s.length() > 1 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"') {
+            s = s.substring(1, s.length() - 1);
+        }
+        if (s.equals("/dev/null")) {
+            return "";
+        }
+        if (s.startsWith("a/") || s.startsWith("b/")) {
+            s = s.substring(2);
+        }
+        return normalizePath(s);
+    }
+
+    /** The path spelling the slicer compares on: forward slashes, no leading separator. */
+    static String normalizePath(final String path) {
+        String s = path == null ? "" : path.trim().replace('\\', '/');
+        while (s.startsWith("/")) {
+            s = s.substring(1);
+        }
+        while (s.endsWith("/")) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s;
+    }
+
     /** Convenience for tests and callers holding a single line. */
     static LineKind classify(final String line, final boolean inFileHeader) {
         return classify(line, 0, line.length(), inFileHeader);

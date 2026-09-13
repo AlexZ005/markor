@@ -16,6 +16,9 @@
     <color name="file">@color/light__file</color>
     <color name="folder">@color/light__folder</color>
     <color name="background">@color/light__background</color>
+    <color name="git_diff_add_bg">@color/light__git_diff_add_bg</color>
+    <color name="git_diff_del_bg">@color/light__git_diff_del_bg</color>
+    <color name="git_diff_hunk">@color/light__git_diff_hunk</color>
 
     <!-- Named colors differing common to day and night -->
     <color name="colorAccent">@color/accent</color>
@@ -33,12 +36,19 @@
     <color name="light__secondary_text">#99000000</color>
     <color name="light__file">#757575</color>
     <color name="light__folder">#757575</color>
+    <!-- Diff line backgrounds are translucent so they tint whatever the theme paints behind them -->
+    <color name="light__git_diff_add_bg">#3343A047</color>
+    <color name="light__git_diff_del_bg">#33E53935</color>
+    <color name="light__git_diff_hunk">#0F6F8C</color>
 
     <color name="dark__background">@color/dark_grey</color>
     <color name="dark__primary_text">#DDFFFFFF</color>
     <color name="dark__secondary_text">#9E9E9E</color>
     <color name="dark__file">#9E9E9E</color>
     <color name="dark__folder">#9E9E9E</color>
+    <color name="dark__git_diff_add_bg">#4D66BB6A</color>
+    <color name="dark__git_diff_del_bg">#4DEF5350</color>
+    <color name="dark__git_diff_hunk">#68C5DB</color>
 
     <color name="ic_launcher_background">#636363</color>
     <color name="white">#FFFFFFFF</color>

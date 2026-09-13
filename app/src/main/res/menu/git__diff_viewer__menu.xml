@@ -1,0 +1,18 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="net.gsantner.markor.git.ui.DiffViewerActivity">
+
+    <item
+        android:id="@+id/git_diff_viewer__copy"
+        android:icon="@drawable/ic_content_copy_black_24dp"
+        android:title="@string/git_copy_diff"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/git_diff_viewer__share"
+        android:icon="@drawable/ic_share_black_24dp"
+        android:title="@string/git_share_diff"
+        app:showAsAction="ifRoom" />
+
+</menu>
