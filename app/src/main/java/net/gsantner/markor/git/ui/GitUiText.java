@@ -12,6 +12,7 @@ import android.text.Editable;
 import android.widget.EditText;
 
 import net.gsantner.markor.R;
+import net.gsantner.markor.git.GitCredentialStore;
 import net.gsantner.markor.git.GitResult;
 
 import java.util.Arrays;
@@ -89,6 +90,25 @@ public final class GitUiText {
     public static void wipe(final char[] secret) {
         if (secret != null) {
             Arrays.fill(secret, '\0');
+        }
+    }
+
+    /**
+     * Stores the credentials for the URL's host, tolerating a device whose Keystore throws.
+     * A repository whose credentials could not be saved still works; the user is asked again.
+     *
+     * @param secret the caller keeps ownership and wipes it afterwards; an empty array stores nothing
+     * @return {@code true} when they were stored
+     */
+    public static boolean saveCredentials(final Context context, final String url, final String username, final char[] secret) {
+        if (secret == null || secret.length == 0 || username == null || username.isEmpty()) {
+            return false;
+        }
+        try {
+            return GitCredentialStore.get(context).save(url, username, secret);
+        } catch (RuntimeException e) {
+            // Keystore failures differ per ROM and must never take the app down mid-dialog.
+            return false;
         }
     }
 
