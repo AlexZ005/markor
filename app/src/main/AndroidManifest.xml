@@ -90,6 +90,11 @@
         </activity>
 
         <activity
+            android:name=".git.ui.DiffViewerActivity"
+            android:label="@string/git_diff"
+            android:parentActivityName=".activity.MainActivity" />
+
+        <activity
             android:name=".activity.StoragePermissionActivity"
             android:label="@string/permissions"
             android:parentActivityName=".activity.MainActivity" />
