@@ -62,6 +62,7 @@ public class CloneDialog extends DialogFragment {
     private static final String EXTRA_URL = "EXTRA_URL";
     private static final String EXTRA_FOLDER = "EXTRA_FOLDER";
     private static final String STATE_FOLDER = "STATE_FOLDER";
+    private static final String STATE_RUN_ID = "STATE_RUN_ID";
 
     /** Told when a clone finished successfully; called on the main thread, just before the dialog closes. */
     public interface Listener {
@@ -71,6 +72,8 @@ public class CloneDialog extends DialogFragment {
 
     private Listener _listener;
     private File _targetFolder;
+    /** Id of the clone this dialog started, so a clone started elsewhere is none of its business. */
+    private long _runId = -1;
 
     private View _form;
     private View _progressGroup;
@@ -141,6 +144,7 @@ public class CloneDialog extends DialogFragment {
             _targetFolder = (File) args.getSerializable(EXTRA_FOLDER);
         } else {
             _targetFolder = (File) savedInstanceState.getSerializable(STATE_FOLDER);
+            _runId = savedInstanceState.getLong(STATE_RUN_ID, -1);
         }
         showFolder();
 
@@ -161,7 +165,7 @@ public class CloneDialog extends DialogFragment {
         dialog.setOnShowListener(d -> {
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(v -> startClone());
             dialog.getButton(DialogInterface.BUTTON_NEGATIVE).setOnClickListener(v -> {
-                if (CloneRunner.get().isRunning()) {
+                if (isOurCloneRunning()) {
                     CloneRunner.get().cancel();
                 } else {
                     dismiss();
@@ -176,13 +180,14 @@ public class CloneDialog extends DialogFragment {
     public void onSaveInstanceState(@NonNull final Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putSerializable(STATE_FOLDER, _targetFolder);
+        outState.putLong(STATE_RUN_ID, _runId);
     }
 
     @Override
     public void onStart() {
         super.onStart();
         // Re-attaches after a rotation: shows the running clone again, or its result if it finished meanwhile.
-        CloneRunner.get().setListener(_runnerListener);
+        CloneRunner.get().setListener(_runnerListener, _runId);
         applyRunningState();
     }
 
@@ -196,7 +201,7 @@ public class CloneDialog extends DialogFragment {
 
     private void chooseFolder() {
         final Context context = getContext();
-        if (context == null || CloneRunner.get().isRunning()) {
+        if (context == null || isOurCloneRunning()) {
             return;
         }
         MarkorFileBrowserFactory.showFolderDialog(new GsFileBrowserOptions.SelectionListenerAdapter() {
@@ -259,7 +264,11 @@ public class CloneDialog extends DialogFragment {
 
     private void startClone() {
         final Context context = getContext();
-        if (context == null || CloneRunner.get().isRunning()) {
+        if (context == null || isOurCloneRunning()) {
+            return;
+        }
+        if (CloneRunner.get().isRunning()) {
+            showStatus(context.getString(R.string.git_clone__already_running));
             return;
         }
 
@@ -286,8 +295,14 @@ public class CloneDialog extends DialogFragment {
         }
 
         showStatus(null);
-        CloneRunner.get().start(context, url.getUrl(), target, username, token);
+        final boolean started = CloneRunner.get().start(context, url.getUrl(), target, username, token);
         GitUiText.wipe(token);
+        if (!started) {
+            showStatus(context.getString(R.string.git_clone__already_running));
+            return;
+        }
+        _runId = CloneRunner.get().getRunId();
+        // The field is emptied so the token cannot be read back out of the view.
         _tokenEdit.setText("");
         applyRunningState();
     }
@@ -316,9 +331,14 @@ public class CloneDialog extends DialogFragment {
 
     // ---------------------------------------------------------------- view state
 
+    /** @return {@code true} while the clone <i>this</i> dialog started is running */
+    private boolean isOurCloneRunning() {
+        return _runId >= 0 && CloneRunner.get().isRunning() && CloneRunner.get().getRunId() == _runId;
+    }
+
     /** Swaps the form for the progress view (and back) according to what the runner is doing. */
     private void applyRunningState() {
-        final boolean running = CloneRunner.get().isRunning();
+        final boolean running = isOurCloneRunning();
         _form.setVisibility(running ? View.GONE : View.VISIBLE);
         _progressGroup.setVisibility(running ? View.VISIBLE : View.GONE);
         setCancelable(!running);

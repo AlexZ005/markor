@@ -570,6 +570,7 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_clone__no_folder">No folder selected</string>
     <string name="git_clone__action">Clone</string>
     <string name="git_clone__progress">Cloning\u2026</string>
+    <string name="git_clone__already_running">Another clone is still running</string>
     <string name="git_clone__done">Cloned into %1$s</string>
     <string name="git_error__generic">Git operation failed</string>
     <string name="git_error__auth_failed">Check username and token</string>
