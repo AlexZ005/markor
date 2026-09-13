@@ -188,7 +188,7 @@ public class CloneDialog extends DialogFragment {
 
     @Override
     public void onStop() {
-        CloneRunner.get().setListener(null);
+        CloneRunner.get().removeListener(_runnerListener);
         super.onStop();
     }
 
