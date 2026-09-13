@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    Test-flavour only. Manual entry point for the Git tab's commit dialog; see
+    net.gsantner.markor.git.test.GitCommitDialogTestActivity.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name="net.gsantner.markor.git.test.GitCommitDialogTestActivity"
+            android:exported="true"
+            android:label="Git commit dialog (test)"
+            android:theme="@style/AppTheme.Unified" />
+    </application>
+</manifest>
