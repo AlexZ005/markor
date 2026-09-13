@@ -7,7 +7,9 @@
 #########################################################*/
 package net.gsantner.markor.git;
 
+import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.RmCommand;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
@@ -361,11 +363,103 @@ final class JGitLocalOps {
     }
 
     GitResult<GitCommitInfo> commit(final File repoDir, final String message, final Collection<String> paths,
-                                    final GitAuthor author, final GitProgress progress) {
-        return GitResult.failed("not implemented (task 2.2)");
+                                    final GitAuthor author, final GitProgress rawProgress) {
+        final GitProgress progress = orNone(rawProgress);
+        if (message == null || message.trim().isEmpty()) {
+            return GitResult.failed("The commit message must not be empty");
+        }
+        if (author == null) {
+            return GitResult.failed("An author name and e-mail are needed to commit");
+        }
+        if (isCancelled(progress)) {
+            return GitResult.cancelled();
+        }
+        progress.onTaskBegin(TASK_COMMIT, GitProgress.UNKNOWN);
+        try (Repository repo = JGitRepos.open(repoDir); Git git = new Git(repo)) {
+            final GitRepoState state = JGitRepos.mapState(repo.getRepositoryState());
+            if (state != GitRepoState.NORMAL) {
+                return GitResult.failed("A " + (state == GitRepoState.REBASING ? "rebase" : "merge")
+                        + " is in progress; finish or abort it before committing");
+            }
+
+            final List<String> wanted = paths == null || paths.isEmpty()
+                    ? allChangedPaths(git)
+                    : normalizePaths(paths);
+            if (wanted.isEmpty()) {
+                return GitResult.failed("Nothing to commit");
+            }
+            if (isCancelled(progress)) {
+                return GitResult.cancelled();
+            }
+
+            // Stage exactly the wanted paths: "add" for files that are there, "rm" for the ones that are gone.
+            final File workTree = repo.getWorkTree();
+            final List<String> existing = new ArrayList<>();
+            final List<String> removed = new ArrayList<>();
+            for (final String path : wanted) {
+                (new File(workTree, path).exists() ? existing : removed).add(path);
+            }
+            if (!existing.isEmpty()) {
+                final AddCommand add = git.add();
+                for (final String path : existing) {
+                    add.addFilepattern(path);
+                }
+                add.call();
+            }
+            if (!removed.isEmpty()) {
+                final RmCommand rm = git.rm();
+                for (final String path : removed) {
+                    rm.addFilepattern(path);
+                }
+                rm.call();
+            }
+            if (isCancelled(progress)) {
+                return GitResult.cancelled();
+            }
+
+            final Status staged = git.status().call();
+            if (staged.getAdded().isEmpty() && staged.getChanged().isEmpty() && staged.getRemoved().isEmpty()) {
+                return GitResult.failed("Nothing to commit: none of the given files has changes");
+            }
+            // No setAmend(): this app never rewrites an existing commit.
+            final RevCommit commit = git.commit()
+                    .setMessage(message)
+                    .setAllowEmpty(false)
+                    .setAuthor(author.getName(), author.getEmail())
+                    .setCommitter(author.getName(), author.getEmail())
+                    .call();
+            return GitResult.ok(toCommitInfo(commit));
+        } catch (Exception e) {
+            return JGitErrors.map(e, progress, repoDir);
+        } finally {
+            progress.onTaskEnd(TASK_COMMIT);
+        }
+    }
+
+    /** Every path {@link #status} reports, conflicts excluded -- what "commit everything" means. */
+    private static List<String> allChangedPaths(final Git git) throws Exception {
+        final List<String> out = new ArrayList<>();
+        for (final GitStatusEntry entry : toEntries(git.status().call())) {
+            if (entry.getKind() != GitStatusEntry.Kind.CONFLICT) {
+                out.add(entry.getPath());
+            }
+        }
+        return out;
+    }
+
+    private static List<String> normalizePaths(final Collection<String> paths) {
+        final List<String> out = new ArrayList<>(paths.size());
+        for (final String path : paths) {
+            final String normalized = normalizePath(path);
+            if (normalized != null && !out.contains(normalized)) {
+                out.add(normalized);
+            }
+        }
+        return out;
     }
 
     private static final String TASK_DIFF = "Computing diff";
+    private static final String TASK_COMMIT = "Committing";
 
     private static GitProgress orNone(final GitProgress progress) {
         return progress == null ? GitProgress.NONE : progress;
