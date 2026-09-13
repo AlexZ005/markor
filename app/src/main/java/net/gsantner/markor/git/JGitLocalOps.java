@@ -97,13 +97,13 @@ final class JGitLocalOps {
         if (!dir.exists() && !dir.mkdirs()) {
             return GitResult.failed("Cannot create folder: " + dir.getPath());
         }
-        progress.onTaskBegin("Initializing repository", GitProgress.UNKNOWN);
+        progress.onTaskBegin(TASK_INIT, GitProgress.UNKNOWN);
         try (Git git = Git.init().setDirectory(dir).call()) {
             return GitResult.ok(JGitRepos.describe(git.getRepository()));
         } catch (Exception e) {
             return JGitErrors.map(e, progress, dir);
         } finally {
-            progress.onTaskEnd("Initializing repository");
+            progress.onTaskEnd(TASK_INIT);
         }
     }
 
@@ -112,13 +112,13 @@ final class JGitLocalOps {
         if (isCancelled(progress)) {
             return GitResult.cancelled();
         }
-        progress.onTaskBegin("Reading status", GitProgress.UNKNOWN);
+        progress.onTaskBegin(TASK_STATUS, GitProgress.UNKNOWN);
         try (Repository repo = JGitRepos.open(repoDir); Git git = new Git(repo)) {
             return GitResult.ok(toEntries(git.status().setProgressMonitor(new JGitProgressMonitor(progress)).call()));
         } catch (Exception e) {
             return JGitErrors.map(e, progress, repoDir);
         } finally {
-            progress.onTaskEnd("Reading status");
+            progress.onTaskEnd(TASK_STATUS);
         }
     }
 
@@ -164,7 +164,7 @@ final class JGitLocalOps {
         if (isCancelled(progress)) {
             return GitResult.cancelled();
         }
-        progress.onTaskBegin("Reading history", GitProgress.UNKNOWN);
+        progress.onTaskBegin(TASK_LOG, GitProgress.UNKNOWN);
         try (Repository repo = JGitRepos.open(repoDir)) {
             final ObjectId head = repo.resolve(Constants.HEAD);
             if (head == null) {
@@ -191,7 +191,7 @@ final class JGitLocalOps {
         } catch (Exception e) {
             return JGitErrors.map(e, progress, repoDir);
         } finally {
-            progress.onTaskEnd("Reading history");
+            progress.onTaskEnd(TASK_LOG);
         }
     }
 
@@ -458,6 +458,9 @@ final class JGitLocalOps {
         return out;
     }
 
+    private static final String TASK_INIT = "Initializing repository";
+    private static final String TASK_STATUS = "Reading status";
+    private static final String TASK_LOG = "Reading history";
     private static final String TASK_DIFF = "Computing diff";
     private static final String TASK_COMMIT = "Committing";
 
