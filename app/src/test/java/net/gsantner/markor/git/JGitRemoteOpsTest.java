@@ -246,6 +246,12 @@ public class JGitRemoteOpsTest {
         assertThat(r.getFiles()).containsExactly("todo.txt");
         assertThat(_git.open(_bobDir, GitProgress.NONE).getValue().getState()).isEqualTo(GitRepoState.MERGING);
         assertThat(_bob.status().call().getConflicting()).containsExactly("todo.txt");
+        // the Changes list (task 2.2) must show the conflicted file exactly once, as CONFLICT
+        final GitResult<List<GitStatusEntry>> status = _git.status(_bobDir, GitProgress.NONE);
+        assertOk(status);
+        assertThat(status.getValue()).containsExactly(new GitStatusEntry("todo.txt", GitStatusEntry.Kind.CONFLICT));
+        // and commit() must refuse while merging
+        assertThat(_git.commit(_bobDir, "x", null, BOB, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.FAILED);
         final String conflicted = read(_bobDir, "todo.txt");
         assertThat(conflicted).contains("<<<<<<< ").contains("=======").contains(">>>>>>> ").contains("oat").contains("soy");
 
@@ -266,6 +272,7 @@ public class JGitRemoteOpsTest {
         assertThat(done.getValue().getState()).isEqualTo(GitRepoState.NORMAL);
         assertThat(_bob.getRepository().getRepositoryState()).isEqualTo(RepositoryState.SAFE);
         assertThat(_bob.status().call().isClean()).isTrue();
+        assertThat(_git.status(_bobDir, GitProgress.NONE).getValue()).isEmpty();
         final RevCommit merge = log(_bob).get(0);
         assertThat(merge.getFullMessage()).isEqualTo("Merge alice's milk");
         assertThat(merge.getParentCount()).isEqualTo(2);
@@ -340,6 +347,7 @@ public class JGitRemoteOpsTest {
         assertThat(r.getFiles()).containsExactly("todo.txt");
         assertThat(_git.open(_bobDir, GitProgress.NONE).getValue().getState()).isEqualTo(GitRepoState.REBASING);
         assertThat(_bob.status().call().getConflicting()).containsExactly("todo.txt");
+        assertThat(_git.status(_bobDir, GitProgress.NONE).getValue()).containsExactly(new GitStatusEntry("todo.txt", GitStatusEntry.Kind.CONFLICT));
         assertThat(read(_bobDir, "todo.txt")).contains("<<<<<<< ").contains(">>>>>>> ");
 
         assertThat(_git.continueAfterConflictResolution(_bobDir, null, BOB, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.CONFLICTS);
