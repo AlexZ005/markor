@@ -9,11 +9,14 @@ package net.gsantner.markor.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /** Task 2.2: {@code init}, {@code status} and {@code log} of {@link JGitLocalOps}. */
@@ -51,6 +54,48 @@ public class JGitLocalOpsInitStatusLogTest {
         final GitResult<GitRepoInfo> r = _git.init(dir, GitProgress.NONE);
         assertThat(r.isOk()).as(r.toString()).isTrue();
         assertThat(_git.isRepository(dir)).isTrue();
+    }
+
+    /**
+     * {@code git init} inside a subfolder of an existing repository creates a real nested repository,
+     * exactly as the command line does; only the folder itself carrying {@code .git} is refused.
+     */
+    @Test
+    public void initInsideAnExistingRepositoryCreatesANestedRepository() throws Exception {
+        try (GitTestRepo repo = new GitTestRepo(tmp.newFolder("outer"))) {
+            repo.write("a.md", "a\n");
+            repo.commitAll("initial");
+
+            final File sub = new File(repo.root(), "sub");
+            assertThat(sub.mkdirs()).isTrue();
+            final GitResult<GitRepoInfo> r = _git.init(sub, GitProgress.NONE);
+            assertThat(r.isOk()).as(r.toString()).isTrue();
+            assertThat(r.getValue().getWorkTree().getCanonicalFile()).isEqualTo(sub.getCanonicalFile());
+        }
+    }
+
+    /**
+     * A linked worktree or submodule has {@code .git} as a *file* pointing elsewhere. Those are out of
+     * scope for now and must be reported as "not a repository" rather than half-work.
+     */
+    @Test
+    public void aLinkedWorktreeIsReportedAsNotARepository() throws Exception {
+        final File main = tmp.newFolder("main");
+        try (GitTestRepo repo = new GitTestRepo(main)) {
+            repo.write("a.md", "a\n");
+            repo.commitAll("initial");
+        }
+        final File linked = new File(tmp.getRoot(), "linked");
+        Assume.assumeTrue("needs the git command line to create a linked worktree",
+                runGit(main, "worktree", "add", "-b", "side", linked.getAbsolutePath()));
+        assertThat(new File(linked, ".git")).isFile();
+
+        assertThat(_git.isRepository(linked)).isFalse();
+        assertThat(_git.findRepositoryRoot(linked)).isNull();
+        assertThat(_git.status(linked, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.NOT_A_REPO);
+        assertThat(_git.log(linked, 10, 0, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.NOT_A_REPO);
+        // init must not silently take over such a folder either
+        assertThat(_git.init(linked, GitProgress.NONE).getKind()).isEqualTo(GitResult.Kind.FAILED);
     }
 
     @Test
@@ -236,9 +281,21 @@ public class JGitLocalOpsInitStatusLogTest {
         }
     }
 
+    private static boolean runGit(final File cwd, final String... args) {
+        final List<String> command = new ArrayList<>();
+        command.add("git");
+        command.addAll(Arrays.asList(args));
+        try {
+            final Process process = new ProcessBuilder(command).directory(cwd).redirectErrorStream(true).start();
+            return process.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private static List<String> subjects(final GitResult<List<GitCommitInfo>> result) {
         assertThat(result.isOk()).as(result.toString()).isTrue();
-        final List<String> out = new java.util.ArrayList<>();
+        final List<String> out = new ArrayList<>();
         for (final GitCommitInfo c : result.getValue()) {
             out.add(c.getSubject());
         }
