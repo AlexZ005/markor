@@ -9,14 +9,32 @@ package net.gsantner.markor.git;
 
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.Edit;
+import org.eclipse.jgit.errors.IncorrectObjectTypeException;
+import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.patch.FileHeader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.filter.AndTreeFilter;
+import org.eclipse.jgit.treewalk.filter.NotIgnoredFilter;
+import org.eclipse.jgit.treewalk.filter.PathFilter;
+import org.eclipse.jgit.treewalk.filter.TreeFilter;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -197,18 +215,157 @@ final class JGitLocalOps {
                 author == null ? commit.getCommitTime() : author.getWhen().getTime() / 1000L);
     }
 
-    GitResult<GitDiff> diffWorkingTree(final File repoDir, final String path, final GitProgress progress) {
-        return GitResult.failed("not implemented (task 2.2)");
+    GitResult<GitDiff> diffWorkingTree(final File repoDir, final String path, final GitProgress rawProgress) {
+        final GitProgress progress = orNone(rawProgress);
+        if (isCancelled(progress)) {
+            return GitResult.cancelled();
+        }
+        progress.onTaskBegin(TASK_DIFF, GitProgress.UNKNOWN);
+        try (Repository repo = JGitRepos.open(repoDir); ObjectReader reader = repo.newObjectReader()) {
+            // HEAD (or the empty tree in a repository without commits) against the working tree, so that
+            // staged and unstaged changes are shown together and untracked files appear as additions.
+            final ObjectId headTree = repo.resolve(Constants.HEAD + "^{tree}");
+            final AbstractTreeIterator oldTree = headTree == null ? new EmptyTreeIterator() : treeParser(reader, headTree);
+
+            // The working tree is the second tree of the walk, hence index 1: without this, files matched
+            // by .gitignore would show up as additions even though status() does not list them.
+            TreeFilter filter = new NotIgnoredFilter(1);
+            final String relative = normalizePath(path);
+            if (relative != null) {
+                filter = AndTreeFilter.create(PathFilter.create(relative), filter);
+            }
+            final GitDiff diff = computeDiff(repo, oldTree, new FileTreeIterator(repo), filter, false, progress);
+            return diff == null ? GitResult.<GitDiff>cancelled() : GitResult.ok(diff);
+        } catch (Exception e) {
+            return JGitErrors.map(e, progress, repoDir);
+        } finally {
+            progress.onTaskEnd(TASK_DIFF);
+        }
     }
 
-    GitResult<GitDiff> diffForCommit(final File repoDir, final String sha, final GitProgress progress) {
-        return GitResult.failed("not implemented (task 2.2)");
+    GitResult<GitDiff> diffForCommit(final File repoDir, final String sha, final GitProgress rawProgress) {
+        final GitProgress progress = orNone(rawProgress);
+        if (sha == null || sha.trim().isEmpty()) {
+            return GitResult.failed("No commit id given");
+        }
+        if (isCancelled(progress)) {
+            return GitResult.cancelled();
+        }
+        progress.onTaskBegin(TASK_DIFF, GitProgress.UNKNOWN);
+        try (Repository repo = JGitRepos.open(repoDir);
+             ObjectReader reader = repo.newObjectReader();
+             RevWalk walk = new RevWalk(reader)) {
+            final ObjectId id = repo.resolve(sha.trim());
+            if (id == null) {
+                return GitResult.failed("No such commit: " + sha.trim());
+            }
+            final RevCommit commit;
+            try {
+                commit = walk.parseCommit(id);
+            } catch (IncorrectObjectTypeException | MissingObjectException e) {
+                return GitResult.failed("Not a commit: " + sha.trim());
+            }
+            final AbstractTreeIterator oldTree = commit.getParentCount() == 0
+                    ? new EmptyTreeIterator() // root commit: compared with the empty tree, like "git show"
+                    : treeParser(reader, walk.parseCommit(commit.getParent(0).getId()).getTree());
+            final GitDiff diff = computeDiff(repo, oldTree, treeParser(reader, commit.getTree()), null, true, progress);
+            return diff == null ? GitResult.<GitDiff>cancelled() : GitResult.ok(diff);
+        } catch (Exception e) {
+            return JGitErrors.map(e, progress, repoDir);
+        } finally {
+            progress.onTaskEnd(TASK_DIFF);
+        }
+    }
+
+    /**
+     * Formats the unified diff between two trees and collects the per-file summary.
+     *
+     * @return the diff, or {@code null} when {@code progress} was cancelled while formatting
+     */
+    private static GitDiff computeDiff(final Repository repo, final AbstractTreeIterator oldTree, final AbstractTreeIterator newTree,
+                                       final TreeFilter filter, final boolean detectRenames, final GitProgress progress) throws IOException {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final List<GitDiff.FileChange> files = new ArrayList<>();
+        try (DiffFormatter formatter = new DiffFormatter(out)) {
+            formatter.setRepository(repo);
+            formatter.setDetectRenames(detectRenames);
+            if (filter != null) {
+                formatter.setPathFilter(filter);
+            }
+            for (final DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                if (isCancelled(progress)) {
+                    return null;
+                }
+                // toFileHeader() gives the edit list and tells binary content apart; format() writes the
+                // hunks (or the "Binary files differ" line) for the same entry.
+                files.add(toFileChange(entry, formatter.toFileHeader(entry)));
+                formatter.format(entry);
+            }
+            formatter.flush();
+        }
+        return new GitDiff(new String(out.toByteArray(), StandardCharsets.UTF_8), files);
+    }
+
+    private static GitDiff.FileChange toFileChange(final DiffEntry entry, final FileHeader header) {
+        final boolean binary = header.getPatchType() != FileHeader.PatchType.UNIFIED;
+        int added = 0;
+        int deleted = 0;
+        if (!binary) {
+            for (final Edit edit : header.toEditList()) {
+                added += edit.getEndB() - edit.getBeginB();
+                deleted += edit.getEndA() - edit.getBeginA();
+            }
+        }
+        final GitDiff.ChangeKind kind;
+        switch (entry.getChangeType()) {
+            case ADD:
+                kind = GitDiff.ChangeKind.ADDED;
+                break;
+            case DELETE:
+                kind = GitDiff.ChangeKind.DELETED;
+                break;
+            case RENAME:
+                kind = GitDiff.ChangeKind.RENAMED;
+                break;
+            case COPY:
+                kind = GitDiff.ChangeKind.COPIED;
+                break;
+            default:
+                kind = GitDiff.ChangeKind.MODIFIED;
+                break;
+        }
+        final String path = kind == GitDiff.ChangeKind.DELETED ? entry.getOldPath() : entry.getNewPath();
+        final String oldPath = kind == GitDiff.ChangeKind.RENAMED || kind == GitDiff.ChangeKind.COPIED ? entry.getOldPath() : null;
+        return new GitDiff.FileChange(path, oldPath, kind, added, deleted, binary);
+    }
+
+    private static CanonicalTreeParser treeParser(final ObjectReader reader, final ObjectId treeId) throws IOException {
+        final CanonicalTreeParser parser = new CanonicalTreeParser();
+        parser.reset(reader, treeId);
+        return parser;
+    }
+
+    /** @return the repository-relative path with '/' separators, or {@code null} for "the whole tree" */
+    private static String normalizePath(final String path) {
+        if (path == null) {
+            return null;
+        }
+        String p = path.trim().replace('\\', '/');
+        while (p.startsWith("/")) {
+            p = p.substring(1);
+        }
+        while (p.endsWith("/")) {
+            p = p.substring(0, p.length() - 1);
+        }
+        return p.isEmpty() ? null : p;
     }
 
     GitResult<GitCommitInfo> commit(final File repoDir, final String message, final Collection<String> paths,
                                     final GitAuthor author, final GitProgress progress) {
         return GitResult.failed("not implemented (task 2.2)");
     }
+
+    private static final String TASK_DIFF = "Computing diff";
 
     private static GitProgress orNone(final GitProgress progress) {
         return progress == null ? GitProgress.NONE : progress;
