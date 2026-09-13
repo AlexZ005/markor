@@ -247,9 +247,7 @@ public class RemoteSetupDialog extends DialogFragment {
                         return;
                     }
                     _registry.update(repo.setRemoteUrl(remoteUrl));
-                    if (token.length > 0) {
-                        GitCredentialStore.get(ctx).save(remoteUrl, username, token);
-                    }
+                    GitUiText.saveCredentials(ctx, remoteUrl, username, token);
                     GitUiText.wipe(token);
                     Toast.makeText(ctx, R.string.git_remote__saved, Toast.LENGTH_SHORT).show();
                     if (_listener != null) {

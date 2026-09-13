@@ -193,8 +193,6 @@ final class CloneRunner {
         }
         registry.add(config);
         registry.setActive(config.getPath());
-        if (_token.length > 0 && _username != null && !_username.isEmpty()) {
-            GitCredentialStore.get(_appContext).save(_url, _username, _token);
-        }
+        GitUiText.saveCredentials(_appContext, _url, _username, _token);
     }
 }
