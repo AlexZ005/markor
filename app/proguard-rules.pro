@@ -21,3 +21,8 @@
 # ERROR: Missing classes detected while running R8. Please add the missing classes or apply additional keep rules that are generated in /home/runner/work/markor/markor/app/build/outputs/mapping/flavorAtestRelease/missing_rules.txt.
 # ERROR: R8: Missing class java.awt.AlphaComposite (referenced from: java.awt.image.BufferedImage com.vladsch.flexmark.util.ImageUtils.makeRoundedCorner(java.awt.image.BufferedImage, int, int) and 1 other context)
 -ignorewarnings
+
+# Git tab (fork feature): GitRepoConfig is (de)serialized by Gson through its fields.
+# @SerializedName pins the JSON names, keeping the members keeps reflection working.
+-keepclassmembers class net.gsantner.markor.git.GitRepoConfig { <fields>; }
+-keepclassmembers enum net.gsantner.markor.git.GitRepoConfig$PullStrategy { *; }
