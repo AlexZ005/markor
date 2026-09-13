@@ -133,13 +133,16 @@ final class CloneRunner {
         final GitFixedCredentials credentials = new GitFixedCredentials(
                 GitCredentialStore.hostKey(url), username, _token);
         _cancelToken = GitTaskRunner.get().submit(target.getAbsolutePath(),
-                cancelToken -> new JGitService().clone(url, target, credentials,
-                        new GitUiProgress(cancelToken, this::onProgress)),
+                cancelToken -> {
+                    try {
+                        return new JGitService().clone(url, target, credentials,
+                                new GitUiProgress(cancelToken, this::onProgress));
+                    } finally {
+                        credentials.wipe();
+                    }
+                },
                 () -> true,
-                result -> {
-                    credentials.wipe();
-                    onFinished(result);
-                });
+                this::onFinished);
         return true;
     }
 
