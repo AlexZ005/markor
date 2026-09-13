@@ -43,6 +43,7 @@ import net.gsantner.markor.git.GitTaskRunner;
 import net.gsantner.markor.git.JGitService;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * Shows one unified diff: the working tree against HEAD, or a commit against its parent, for the
@@ -205,10 +206,22 @@ public class DiffViewerActivity extends MarkorBaseActivity {
         final @ColorInt int accentFg = ContextCompat.getColor(this, R.color.colorAccent);
 
         final SpannableString spannable = new SpannableString(formatted.getText());
-        for (final DiffTextFormatter.Line line : formatted.getLines()) {
-            final int from = line.getStart();
-            final int to = line.getEnd();
-            switch (line.getKind()) {
+        final List<DiffTextFormatter.Line> lines = formatted.getLines();
+
+        // One span per RUN of same-kind lines, not per line: a diff is mostly long blocks of
+        // additions and deletions, and TextView pays for every span on every draw. A 500-line block
+        // of additions costs one span here instead of 500, and looks identical - LineBackgroundSpan
+        // is invoked for each line a span covers.
+        for (int start = 0; start < lines.size(); ) {
+            final DiffTextFormatter.LineKind kind = lines.get(start).getKind();
+            int end = start + 1;
+            while (end < lines.size() && lines.get(end).getKind() == kind) {
+                end++;
+            }
+
+            final int from = lines.get(start).getStart();
+            final int to = lines.get(end - 1).getEnd();
+            switch (kind) {
                 case ADDED:
                     setSpan(spannable, new DiffLineBackgroundSpan(addBg), from, to);
                     break;
@@ -232,6 +245,7 @@ public class DiffViewerActivity extends MarkorBaseActivity {
                 default:
                     break;
             }
+            start = end;
         }
 
         _message.setVisibility(View.GONE);
