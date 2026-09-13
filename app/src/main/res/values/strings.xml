@@ -517,4 +517,37 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="static_cursor">Static cursor</string>
     <string name="disable_cursor_blinking">Disable cursor blinking</string>
     <string name="folder_local">Folder local</string>
+
+    <!-- Git tab (fork feature) -->
+    <string name="git_commit">Commit</string>
+    <string name="git_commit_ellipsis">Commit…</string>
+    <string name="git_commit_and_push">Commit and push</string>
+    <string name="git_commit_message">Commit message</string>
+    <string name="git_commit_message_hint">Describe what changed</string>
+    <string name="git_commit_message_required">Enter a commit message</string>
+    <string name="git_changed_files">Changed files</string>
+    <string name="git_select_all">Select all</string>
+    <string name="git_no_changes">Nothing has changed since the last commit</string>
+    <string name="git_loading_changes">Reading changes…</string>
+    <string name="git_committing">Committing…</string>
+    <string name="git_conflict_not_committable">Has conflicts — resolve it in the editor first</string>
+    <string name="git_status_modified">Modified</string>
+    <string name="git_status_added">Added</string>
+    <string name="git_status_deleted">Deleted</string>
+    <string name="git_status_untracked">Untracked</string>
+    <string name="git_status_conflict">Conflict</string>
+    <string name="git_operation_failed">The git operation failed</string>
+    <string name="git_author">Author</string>
+    <string name="git_author_title">Who are you?</string>
+    <string name="git_author_description">Commits record who made them. This is stored on this device and in the repository, and is not sent anywhere else.</string>
+    <string name="git_author_name_hint">Your name</string>
+    <string name="git_author_email_hint">your@email.example</string>
+    <string name="git_author_name_required">Enter a name</string>
+    <string name="git_author_email_required">Enter an e-mail address</string>
+    <string name="git_ignore_suggest_title">Ignore Markor\'s own folder?</string>
+    <string name="git_ignore_suggest_message">Markor keeps snippets and templates in %1$s. Adding it to .gitignore keeps it out of your commits.</string>
+    <string name="git_ignore_suggest_add">Add to .gitignore</string>
+    <string name="git_ignore_suggest_skip">Not now</string>
+    <string name="git_ignore_suggest_added">Added %1$s to .gitignore</string>
+    <string name="git_ignore_suggest_failed">Could not write .gitignore</string>
 </resources>
