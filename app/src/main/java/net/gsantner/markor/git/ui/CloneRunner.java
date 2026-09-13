@@ -60,13 +60,14 @@ final class CloneRunner {
     private char[] _token;
     private GitCancelToken _cancelToken;
     private boolean _running;
+    private long _runId;
 
     private String _task;
     private int _percent = GitProgress.UNKNOWN;
 
     private Listener _listener;
     private GitResult<GitRepoInfo> _undelivered;
-    private boolean _hasUndelivered;
+    private long _undeliveredRunId = -1;
 
     static synchronized CloneRunner get() {
         if (sInstance == null) {
@@ -80,6 +81,17 @@ final class CloneRunner {
 
     boolean isRunning() {
         return _running;
+    }
+
+    /**
+     * Identifies the current clone. A dialog remembers the id of the clone it started (across a
+     * rotation, in its saved instance state) and passes it to {@link #setListener}, so it only ever
+     * sees the progress and the result of <i>its own</i> clone and never a stale one.
+     *
+     * @return the id of the running or last clone; 0 before the first one
+     */
+    long getRunId() {
+        return _runId;
     }
 
     /** @return the folder of the running clone, or {@code null} */
@@ -113,9 +125,10 @@ final class CloneRunner {
         _token = token == null ? new char[0] : token.clone();
         _task = null;
         _percent = GitProgress.UNKNOWN;
-        _hasUndelivered = false;
+        _undeliveredRunId = -1;
         _undelivered = null;
         _running = true;
+        _runId++;
 
         final GitFixedCredentials credentials = new GitFixedCredentials(
                 GitCredentialStore.hostKey(url), username, _token);
@@ -152,12 +165,14 @@ final class CloneRunner {
      * Attaches the observer. A result that arrived while nobody was listening (the dialog was being
      * recreated) is delivered right away, so a clone can never finish unnoticed.
      *
-     * @param listener {@code null} to detach
+     * @param listener      {@code null} to detach
+     * @param expectedRunId  the {@link #getRunId() id} of the clone this listener started; a result
+     *                       from any other clone is not handed to it
      */
-    void setListener(final Listener listener) {
+    void setListener(final Listener listener, final long expectedRunId) {
         _listener = listener;
-        if (listener != null && _hasUndelivered) {
-            _hasUndelivered = false;
+        if (listener != null && _undeliveredRunId >= 0 && _undeliveredRunId == expectedRunId) {
+            _undeliveredRunId = -1;
             final GitResult<GitRepoInfo> result = _undelivered;
             final File target = _target;
             _undelivered = null;
@@ -188,7 +203,7 @@ final class CloneRunner {
             _listener.onCloneFinished(result, _target);
         } else {
             _undelivered = result;
-            _hasUndelivered = true;
+            _undeliveredRunId = _runId;
         }
     }
 
