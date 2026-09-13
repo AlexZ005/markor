@@ -200,7 +200,8 @@ public class RemoteSetupDialog extends DialogFragment {
                     } else if (branches.getValue().isEmpty()) {
                         showStatus(ctx.getString(R.string.git_remote__connection_ok_empty));
                     } else {
-                        showStatus(ctx.getString(R.string.git_remote__connection_ok, branches.getValue().size()));
+                        final int count = branches.getValue().size();
+                        showStatus(ctx.getResources().getQuantityString(R.plurals.git_remote__connection_ok, count, count));
                     }
                 });
     }

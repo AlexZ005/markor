@@ -560,7 +560,10 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_remote__credentials_optional">Credentials (leave empty for a public repository)</string>
     <string name="git_remote__test_connection">Test connection</string>
     <string name="git_remote__testing">Testing connection\u2026</string>
-    <string name="git_remote__connection_ok">Connection works \u2014 %1$d branches</string>
+    <plurals name="git_remote__connection_ok">
+        <item quantity="one">Connection works \u2014 %1$d branch</item>
+        <item quantity="other">Connection works \u2014 %1$d branches</item>
+    </plurals>
     <string name="git_remote__connection_ok_empty">Connection works \u2014 the remote has no branches yet</string>
     <string name="git_remote__token_not_persisted">This device cannot store the token securely. It is kept only until the app closes.</string>
     <string name="git_remote__saved">Remote saved</string>
