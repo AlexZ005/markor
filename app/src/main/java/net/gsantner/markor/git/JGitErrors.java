@@ -30,6 +30,9 @@ import javax.net.ssl.SSLException;
  * classes. Messages are passed through {@link JGitRepos#sanitizeUrl} so no userinfo leaks.
  */
 final class JGitErrors {
+    /** 401 / 403 as standalone tokens, e.g. "401 Unauthorized", "status 403". */
+    private static final java.util.regex.Pattern HTTP_AUTH_STATUS = java.util.regex.Pattern.compile("\\b40[13]\\b");
+
 
     private JGitErrors() {
     }
@@ -101,8 +104,9 @@ final class JGitErrors {
         }
         final String m = message.toLowerCase(Locale.ROOT);
         // Texts from JGitText: notAuthorized, authenticationNotSupported, noCredentialsProvider, serviceNotPermitted
+        // HTTP status codes only as whole tokens: a temp path such as /tmp/junit4013/... must not read as 401.
         return m.contains("not authorized") || m.contains("authentication") || m.contains("not permitted")
-                || m.contains("credentialsprovider") || m.contains("401") || m.contains("403");
+                || m.contains("credentialsprovider") || HTTP_AUTH_STATUS.matcher(m).find();
     }
 
     private static boolean isNetwork(final Throwable t) {
