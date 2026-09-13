@@ -26,3 +26,15 @@
 # @SerializedName pins the JSON names, keeping the members keeps reflection working.
 -keepclassmembers class net.gsantner.markor.git.GitRepoConfig { <fields>; }
 -keepclassmembers enum net.gsantner.markor.git.GitRepoConfig$PullStrategy { *; }
+
+# ---- Git tab: JGit 5.13 (doc/adr/0001-jgit-on-android.md)
+# JGit loads its error/progress messages by reflection: TranslationBundle.load() iterates getClass().getFields() of
+# JGitText (829 public String fields) and looks each field NAME up in JGitText.properties. Nothing broke without this
+# rule in AGP 8.13.2 (R8 recognised the getFields() call and kept all fields by name, see seeds.txt; the flavorAtest
+# spike screen passed clone/fetch/pull/push and the auth-failure message path in the release build). The rule pins
+# that behaviour so a future R8 cannot silently rename the fields, which would turn every JGit error message into a
+# TranslationStringMissingException.
+-keepclassmembers class * extends org.eclipse.jgit.nls.TranslationBundle { public <fields>; }
+# Missing-class warnings from JGit that -ignorewarnings (above, for flexmark's java.awt) already hides and that are
+# genuinely absent on Android: java.lang.management/javax.management (JMX in Monitoring, WindowCache, GC$PidLock) and
+# org.ietf.jgss (Kerberos HTTP auth). No keep rule can help; the service layer must avoid those paths (gc.auto=0).
