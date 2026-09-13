@@ -13,6 +13,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.util.Log;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
@@ -86,6 +87,8 @@ public class DiffViewerActivity extends MarkorBaseActivity {
         }
         activity.startActivity(intent);
     }
+
+    private static final String LOG_TAG = "DiffViewer";
 
     private final GitService _git = new JGitService();
 
@@ -166,6 +169,7 @@ public class DiffViewerActivity extends MarkorBaseActivity {
                         return;
                     }
                     if (result.isError()) {
+                        Log.w(LOG_TAG, "Loading the diff failed", result.getError());
                         showMessage(getString(R.string.error_could_not_open_file));
                         return;
                     }
