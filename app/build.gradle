@@ -82,6 +82,8 @@ android {
         encoding = 'UTF-8'
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        // java.nio.file / java.time on API < 26 -- required by JGit (Git tab)
+        coreLibraryDesugaringEnabled true
     }
     namespace 'net.gsantner.markor'
     lint {
@@ -150,6 +152,15 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     implementation 'com.google.code.gson:gson:2.10.1'
+
+    // Git tab: JGit, pure Java git implementation. License: EDL 1.0 (BSD-3-Clause)
+    // https://github.com/eclipse-jgit/jgit -- needs java.nio.file, provided below API 26 by desugaring.
+    // 7.x is compiled with Java records, which D8 cannot desugar inside a dependency (AGP 8.13: "global synthetics consumer"), hence 6.x.
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r'
+    // JGit logs through slf4j; a no-op binding keeps it quiet (MIT)
+    implementation 'org.slf4j:slf4j-nop:2.0.18'
+    // Core library desugaring with java.nio.file support (Apache 2.0)
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
 
     // Processors
     def anpros = []
