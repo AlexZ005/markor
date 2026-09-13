@@ -11,6 +11,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -113,6 +114,8 @@ public class CommitDetailActivity extends MarkorBaseActivity {
         intent.putExtra(EXTRA_EPOCH_SECONDS, commit.getEpochSeconds());
         activity.startActivity(intent);
     }
+
+    private static final String LOG_TAG = "CommitDetail";
 
     private final GitService _git = new JGitService();
 
@@ -236,6 +239,7 @@ public class CommitDetailActivity extends MarkorBaseActivity {
                         return;
                     }
                     if (result.isError()) {
+                        Log.w(LOG_TAG, "Loading the commit failed", result.getError());
                         showMessage(getString(R.string.error_could_not_open_file));
                         return;
                     }
