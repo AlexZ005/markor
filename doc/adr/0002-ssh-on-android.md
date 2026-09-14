@@ -265,3 +265,57 @@ gh repo deploy-key add deploy_rsa.pub --allow-write --title "spike-api26" --repo
 ```
 
 The private key never leaves the emulator and is never printed or logged.
+
+## Outcome of 8.1c (2026-09-14): what was built, and the two choices this ADR left open
+
+### The session factory is per operation, not global
+
+The lane brief raised the alternative: JGit 5.13's `SshSessionFactory` is a process-global singleton,
+so it could be set once in `ApplicationObject` with a factory that finds the current operation's
+repository through a thread-local. That was **not** done, and decision 5 above stands. A thread-local
+would have to be set and cleared around every remote call anyway — the same number of places as the
+transport callback — and it would leave a window in which a global factory holds one repository's
+key while another repository's operation is running on another thread. `JGitSsh` builds a fresh
+factory, with a freshly decrypted key, for each of clone, fetch, pull, push and ls-remote, and wipes
+the key in the operation's `finally`. Nothing is global and nothing is shared.
+
+The one thing the brief's option would have bought — a factory that is installed even for a code path
+nobody remembered to wire — is covered differently: an operation whose URL the policy calls SSH and
+that has no key is *refused*, never attempted.
+
+### The URL policy grew a transport, and a second gate
+
+Item 7 of "what 8.1c must implement" asked for a rule stronger than a scheme allowlist. What shipped:
+`GitRemoteUrlPolicy.decide` returns `HTTPS`, `SSH` or `LOCAL`, which decides which credential may be
+used; `GitSshRemoteTrust` refuses a key unless the app's own record already says this repository is
+that SSH remote. Written up in full in the addendum to
+`doc/2026-09-13-git-tab-security-review.md`, including the defect that found —
+`GitFragment.refresh()` was copying `.git/config`'s remote URL into that record.
+
+### What the device run added to the tables above
+
+Same emulator image and the same signed R8 release APK as the spike, but driving the **real app**
+rather than `GitSshSpikeActivity`, against `git@github.com:AlexZ005/markor-gittab-testrepo.git` with a
+key generated in the app and registered as a read-write deploy key (`transport-api26-8.1c`):
+
+| Step | Debug | Release (R8) |
+|---|---|---|
+| SSH URL typed → token fields hidden, SSH key row shown | PASS | PASS |
+| key generated in the app; its `SHA256:…` equals `ssh-keygen -lf` on the host | PASS | PASS |
+| first contact → fingerprint dialog with GitHub's published `SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM` (ecdsa-sha2-nistp256) | PASS | PASS |
+| *Cancel* → operation fails, `known_hosts` stays empty | PASS | — |
+| *Trust* → clone | PASS | PASS |
+| second run: no prompt | PASS | PASS |
+| commit + push | PASS | PASS |
+| stored host key corrupted (type kept) → "host key changed", no prompt, file untouched | PASS | — |
+| Settings ▸ Git ▸ Known SSH servers → Forget → asked again on the next connection | PASS | PASS |
+| key GitHub does not know → "The key is not authorised for this repository" | PASS | — |
+| `.git/config` remote rewritten to another host → key not offered, named refusal | PASS | — |
+| per-repository key decides: the repo's read-write key pushes, the read-only default is not used | PASS | PASS |
+
+The ed25519 fixture the key store holds is listed by the chooser only through the key manager; it is
+not offered as a choice, so an unusable key cannot be selected by accident.
+
+**No new R8 rule was needed.** The one keep rule from decision 6 is still the only one, and
+`-ignorewarnings` still hides the same missing-class warnings. The release APK reads the key store,
+parses `known_hosts`, negotiates ecdsa-sha2-nistp256 and pushes.
