@@ -32,8 +32,10 @@ import com.rarepebble.colorpicker.ColorPreference;
 import net.gsantner.markor.R;
 import net.gsantner.markor.frontend.MarkorDialogFactory;
 import net.gsantner.markor.frontend.filebrowser.MarkorFileBrowserFactory;
+import net.gsantner.markor.git.ssh.GitKnownHosts;
 import net.gsantner.markor.git.ssh.GitSshKey;
 import net.gsantner.markor.git.ssh.GitSshKeyStores;
+import net.gsantner.markor.git.ui.GitKnownHostsDialog;
 import net.gsantner.markor.git.ui.SshKeyManagerActivity;
 import net.gsantner.markor.model.AppSettings;
 import net.gsantner.markor.util.BackupUtils;
@@ -223,6 +225,11 @@ public class SettingsActivity extends MarkorBaseActivity {
             updateSummary(R.string.pref_key__git_ssh_key, defaultSshKey == null
                     ? getString(R.string.git_settings__ssh_key_none)
                     : defaultSshKey.getName() + "\n" + defaultSshKey.getFingerprintSha256());
+            // Settings > Git > SSH: how many servers the app has been told to trust (task 8.1c).
+            final int knownHosts = GitKnownHosts.list(GitKnownHosts.fileIn(getActivity().getFilesDir())).size();
+            updateSummary(R.string.pref_key__git_known_hosts, knownHosts == 0
+                    ? getString(R.string.git_settings__known_hosts_empty)
+                    : getResources().getQuantityString(R.plurals.git_settings__known_hosts_count, knownHosts, knownHosts));
 
             setPreferenceVisible(R.string.pref_key__is_multi_window_enabled, Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
 
@@ -294,6 +301,10 @@ public class SettingsActivity extends MarkorBaseActivity {
         public Boolean onPreferenceClicked(Preference preference, String key, int keyResId) {
             final FragmentManager fragManager = getActivity().getSupportFragmentManager();
             switch (keyResId) {
+                case R.string.pref_key__git_known_hosts: {
+                    GitKnownHostsDialog.show(getActivity(), this::doUpdatePreferences);
+                    return true;
+                }
                 case R.string.pref_key__request_external_storage: {
                     GsContextUtils.instance.requestExternalStoragePermission(getActivity());
                     return true;

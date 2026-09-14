@@ -457,4 +457,5 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="pref_key__git_confirm_before_push" translatable="false">pref_key__git_confirm_before_push</string>
     <string name="pref_key__git_show_untracked_files" translatable="false">pref_key__git_show_untracked_files</string>
     <string name="pref_key__git_sync_warning_shown_paths" translatable="false">pref_key__git_sync_warning_shown_paths</string>
+    <string name="pref_key__git_known_hosts" translatable="false">pref_key__git_known_hosts</string>
 </resources>

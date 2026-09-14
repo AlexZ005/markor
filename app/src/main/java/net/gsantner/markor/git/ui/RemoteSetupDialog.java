@@ -56,11 +56,17 @@ import java.util.List;
  * because which key a repository uses is a setting of its own and must not be lost when the URL
  * next to it is refused. The keys themselves are managed in Settings &gt; Git &gt; SSH key.
  * <p>
- * Only HTTPS is offered (decision D4); {@link GitRemoteUrlValidator} explains every refusal. Saving
- * writes the URL both into the repository's {@code .git/config} (remote {@code origin}) and onto the
- * {@link GitRepoConfig} in the {@link GitRepoRegistry}, and puts username and token into the
- * {@link GitCredentialStore}, which is Keystore-backed from API 23 on. Below that the dialog says in
- * one line that the token only lives until the app closes.
+ * HTTPS and SSH are both offered (decision D4 as revised by {@code doc/adr/0002-ssh-on-android.md});
+ * {@link GitRemoteUrlValidator} explains every refusal and says which of the two a URL is, and the
+ * dialog shows the fields of that one only — a token field under an {@code ssh://} URL would invite
+ * someone to fill in something the remote cannot use. Saving writes the URL both into the
+ * repository's {@code .git/config} (remote {@code origin}) and onto the {@link GitRepoConfig} in the
+ * {@link GitRepoRegistry}, and puts username and token into the {@link GitCredentialStore}, which is
+ * Keystore-backed from API 23 on. Below that the dialog says in one line that the token only lives
+ * until the app closes.
+ * <p>
+ * Saving the URL is also what makes an SSH remote usable at all: a key is offered only to a remote
+ * the app itself recorded, see {@link net.gsantner.markor.git.ssh.GitSshRemoteTrust} (task 8.1c).
  * <p>
  * The token is read out of the field as a {@code char[]}, handed to exactly one operation and wiped
  * afterwards; it is never logged, never shown in a toast and never written into the URL.
@@ -76,6 +82,7 @@ public class RemoteSetupDialog extends DialogFragment {
 
     public static final String FRAGMENT_TAG = RemoteSetupDialog.class.getName();
     private static final String EXTRA_REPO_PATH = "EXTRA_REPO_PATH";
+    private static final String EXTRA_CONFIGURED_URL = "EXTRA_CONFIGURED_URL";
 
     /** Told when the remote was stored; called on the main thread, just before the dialog closes. */
     public interface Listener {
@@ -102,6 +109,7 @@ public class RemoteSetupDialog extends DialogFragment {
     private TextView _statusText;
     private TextView _sshKeyText;
     private View _sshKeyBlock;
+    private View _credentialsGroup;
     private ProgressBar _busy;
     private boolean _testing;
 
@@ -109,9 +117,22 @@ public class RemoteSetupDialog extends DialogFragment {
      * @param repoPath path of a repository registered in the {@link GitRepoRegistry}
      */
     public static RemoteSetupDialog newInstance(final String repoPath) {
+        return newInstance(repoPath, null);
+    }
+
+    /**
+     * @param repoPath      path of a repository registered in the {@link GitRepoRegistry}
+     * @param configuredUrl what {@code .git/config} says the remote is, shown when the app has no
+     *                      remote on record for this repository. It is only ever <i>offered</i>: the
+     *                      user still has to press Save, which is what turns it into the app's own
+     *                      record — nothing read off shared storage becomes that on its own
+     *                      (task 8.1c, see {@code GitSshRemoteTrust}).
+     */
+    public static RemoteSetupDialog newInstance(final String repoPath, final String configuredUrl) {
         final RemoteSetupDialog dialog = new RemoteSetupDialog();
         final Bundle args = new Bundle();
         args.putString(EXTRA_REPO_PATH, repoPath);
+        args.putString(EXTRA_CONFIGURED_URL, configuredUrl);
         dialog.setArguments(args);
         return dialog;
     }
@@ -120,6 +141,12 @@ public class RemoteSetupDialog extends DialogFragment {
     public RemoteSetupDialog setListener(final Listener listener) {
         _listener = listener;
         return this;
+    }
+
+    /** @return the URL {@code .git/config} holds, for a repository the app has no remote on record for */
+    private String configuredUrl() {
+        final Bundle args = getArguments();
+        return args == null ? null : args.getString(EXTRA_CONFIGURED_URL);
     }
 
     private String getRepoPath() {
@@ -142,6 +169,7 @@ public class RemoteSetupDialog extends DialogFragment {
         _statusText = root.findViewById(R.id.git_remote_setup_dialog__status);
         _busy = root.findViewById(R.id.git_remote_setup_dialog__busy);
         _sshKeyBlock = root.findViewById(R.id.git_remote_setup_dialog__ssh_key_block);
+        _credentialsGroup = root.findViewById(R.id.git_remote_setup_dialog__credentials_group);
         _sshKeyText = root.findViewById(R.id.git_remote_setup_dialog__ssh_key);
         _sshKeyStore = GitSshKeyStores.get(context);
 
@@ -149,11 +177,15 @@ public class RemoteSetupDialog extends DialogFragment {
         final TextView repoText = root.findViewById(R.id.git_remote_setup_dialog__repo);
         repoText.setText(repo == null ? getRepoPath() : repo.getDisplayName());
 
-        if (savedInstanceState == null && repo != null && repo.getRemoteUrl() != null) {
-            _urlEdit.setText(repo.getRemoteUrl());
-            final String username = GitCredentialStore.get(context).getUsername(repo.getRemoteUrl());
-            if (username != null) {
-                _usernameEdit.setText(username);
+        if (savedInstanceState == null) {
+            final String recorded = repo == null ? null : repo.getRemoteUrl();
+            final String prefill = recorded != null ? recorded : configuredUrl();
+            if (prefill != null) {
+                _urlEdit.setText(prefill);
+                final String username = GitCredentialStore.get(context).getUsername(prefill);
+                if (username != null) {
+                    _usernameEdit.setText(username);
+                }
             }
         }
         if (!GitCredentialStore.get(context).isPersistent()) {
@@ -199,12 +231,12 @@ public class RemoteSetupDialog extends DialogFragment {
     // ---------------------------------------------------------------- ssh key
 
     /**
-     * Whether the typed URL is an SSH one. Asked of {@link GitRemoteUrlValidator}, which still
-     * refuses SSH on this branch and names it as the reason; task 8.1c replaces that with a
-     * transport marker on a valid result, and this method with a read of it.
+     * Whether the typed URL is an SSH one, read off the validator's transport marker — the same rule
+     * {@code GitRemoteUrlPolicy} applies when the operation actually runs, so what the dialog asks
+     * for and what the transport uses cannot drift apart (task 8.1c).
      */
     private boolean isSshUrl(final String url) {
-        return GitRemoteUrlValidator.validate(url).getProblem() == GitRemoteUrlValidator.Problem.SSH_NOT_SUPPORTED;
+        return GitRemoteUrlValidator.validate(url).isSsh();
     }
 
     /**
@@ -221,6 +253,9 @@ public class RemoteSetupDialog extends DialogFragment {
         if (ssh != _sshRowShown) {
             _sshRowShown = ssh;
             _sshKeyBlock.setVisibility(ssh ? View.VISIBLE : View.GONE);
+            // The two are exclusive: an SSH remote has no token, and storing an empty one against
+            // its host would be a lie the next https remote on that host would inherit.
+            _credentialsGroup.setVisibility(ssh ? View.GONE : View.VISIBLE);
         }
         if (ssh && (reread || _sshKeyText.getText().length() == 0)) {
             _sshKeyText.setText(sshKeyLabel(context));
@@ -243,39 +278,10 @@ public class RemoteSetupDialog extends DialogFragment {
     /** Default key or one of the usable named keys; ed25519 keys are not offered (ADR 0002). */
     private void chooseSshKey() {
         final Activity activity = getActivity();
-        final Context context = getContext();
-        if (activity == null || context == null) {
+        if (activity == null) {
             return;
         }
-        final List<GitSshKey> keys = new ArrayList<>();
-        for (final GitSshKey key : _sshKeyStore.list()) {
-            if (key.canAuthenticate()) {
-                keys.add(key);
-            }
-        }
-        final List<String> rows = new ArrayList<>();
-        final GitSshKey fallback = _sshKeyStore.getDefault();
-        rows.add(fallback == null
-                ? context.getString(R.string.git_ssh_keys__repo_key_default_none)
-                : context.getString(R.string.git_ssh_keys__repo_key_default, fallback.getName()));
-        for (final GitSshKey key : keys) {
-            rows.add(key.getName() + "\n" + key.describe());
-        }
-
-        final GsSearchOrCustomTextDialog.DialogOptions dopt = MarkorDialogFactory.baseConf(context);
-        dopt.data = rows;
-        dopt.titleText = R.string.git_ssh_keys__repo_key;
-        dopt.isSearchEnabled = rows.size() > 8;
-        dopt.isSoftInputVisible = false;
-        dopt.okButtonText = 0;
-        dopt.positionCallback = indices -> {
-            if (indices.isEmpty()) {
-                return;
-            }
-            final int index = indices.get(0);
-            selectSshKey(index == 0 ? null : keys.get(index - 1).getId());
-        };
-        GsSearchOrCustomTextDialog.showMultiChoiceDialogWithSearchFilterUI(activity, dopt);
+        GitSshKeyChooser.show(activity, _sshKeyId, this::selectSshKey);
     }
 
     /** @param keyId a stored key id, or null for "use the app default" */
@@ -306,12 +312,16 @@ public class RemoteSetupDialog extends DialogFragment {
             return;
         }
 
-        final char[] typed = GitUiText.readSecret(_tokenEdit);
+        final char[] typed = url.isSsh() ? new char[0] : GitUiText.readSecret(_tokenEdit);
         final GitFixedCredentials fixed = typed.length == 0
                 ? null
                 : new GitFixedCredentials(url.getHost(), GitUiText.trimmedText(_usernameEdit), typed);
         GitUiText.wipe(typed);
-        final GitCredentialsSource credentials = fixed != null ? fixed : GitCredentialStore.get(context).asSource();
+        // The SSH side is pinned to the URL in the field and the key beside it: nothing is stored
+        // yet, so there is no record for GitSshRemoteTrust to weigh this against.
+        final GitCredentialsSource credentials = GitCredentials.of(
+                fixed != null ? fixed : GitCredentialStore.get(context).asSource(),
+                GitSshAuth.forChosenKey(context, _sshKeyId, url.getUrl(), new GitSshUiPrompts()));
 
         setTesting(true, context.getString(R.string.git_remote__testing));
         final String remoteUrl = url.getUrl();
@@ -340,7 +350,7 @@ public class RemoteSetupDialog extends DialogFragment {
                     }
                     final GitResult<List<String>> branches = result.getValue();
                     if (!branches.isOk()) {
-                        showStatus(GitUiText.messageFor(ctx, branches));
+                        showStatus(GitUiText.messageFor(ctx, branches, url.getTransport()));
                     } else if (branches.getValue().isEmpty()) {
                         showStatus(ctx.getString(R.string.git_remote__connection_ok_empty));
                     } else {
@@ -362,8 +372,10 @@ public class RemoteSetupDialog extends DialogFragment {
             return;
         }
 
-        final char[] token = GitUiText.readSecret(_tokenEdit);
-        final String username = GitUiText.trimmedText(_usernameEdit);
+        // An SSH remote authenticates with the key; whatever stands in the token field belongs to
+        // some other remote and must not be stored against this host.
+        final char[] token = url.isSsh() ? new char[0] : GitUiText.readSecret(_tokenEdit);
+        final String username = url.isSsh() ? "" : GitUiText.trimmedText(_usernameEdit);
         if (token.length > 0 && username.isEmpty()) {
             GitUiText.wipe(token);
             _usernameEdit.setError(context.getString(R.string.git_error__username_required));
@@ -408,7 +420,7 @@ public class RemoteSetupDialog extends DialogFragment {
                     setTesting(false, null);
                     if (!result.isSuccess() || !result.getValue().isOk()) {
                         showStatus(result.isSuccess()
-                                ? GitUiText.messageFor(ctx, result.getValue())
+                                ? GitUiText.messageFor(ctx, result.getValue(), url.getTransport())
                                 : ctx.getString(R.string.git_error__generic));
                         return;
                     }

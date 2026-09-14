@@ -11,6 +11,8 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -27,8 +29,12 @@ import net.gsantner.markor.R;
 import net.gsantner.markor.frontend.filebrowser.MarkorFileBrowserFactory;
 import net.gsantner.markor.git.GitCredentialStore;
 import net.gsantner.markor.git.GitProgress;
+import net.gsantner.markor.git.GitRemoteUrlPolicy;
 import net.gsantner.markor.git.GitRepoInfo;
 import net.gsantner.markor.git.GitResult;
+import net.gsantner.markor.git.ssh.GitSshKey;
+import net.gsantner.markor.git.ssh.GitSshKeyStore;
+import net.gsantner.markor.git.ssh.GitSshKeyStores;
 import net.gsantner.markor.util.MarkorContextUtils;
 import net.gsantner.opoc.frontend.filebrowser.GsFileBrowserOptions;
 
@@ -63,6 +69,7 @@ public class CloneDialog extends DialogFragment {
     private static final String EXTRA_FOLDER = "EXTRA_FOLDER";
     private static final String STATE_FOLDER = "STATE_FOLDER";
     private static final String STATE_RUN_ID = "STATE_RUN_ID";
+    private static final String STATE_SSH_KEY_ID = "STATE_SSH_KEY_ID";
 
     /** Told when a clone finished successfully; called on the main thread, just before the dialog closes. */
     public interface Listener {
@@ -84,6 +91,11 @@ public class CloneDialog extends DialogFragment {
     private TextView _progressTask;
     private ProgressBar _progressBar;
     private TextView _statusText;
+    private View _sshGroup;
+    private View _credentialsGroup;
+    private TextView _sshKeyText;
+    /** The key an SSH clone uses, or {@code null} for the app default. */
+    private String _sshKeyId;
 
     private final CloneRunner.Listener _runnerListener = new CloneRunner.Listener() {
         @Override
@@ -136,6 +148,9 @@ public class CloneDialog extends DialogFragment {
         _progressTask = root.findViewById(R.id.git_clone_dialog__progress_task);
         _progressBar = root.findViewById(R.id.git_clone_dialog__progress_bar);
         _statusText = root.findViewById(R.id.git_clone_dialog__status);
+        _sshGroup = root.findViewById(R.id.git_clone_dialog__ssh_group);
+        _credentialsGroup = root.findViewById(R.id.git_clone_dialog__credentials_group);
+        _sshKeyText = root.findViewById(R.id.git_clone_dialog__ssh_key);
 
         if (savedInstanceState == null) {
             if (args.getString(EXTRA_URL) != null) {
@@ -145,6 +160,7 @@ public class CloneDialog extends DialogFragment {
         } else {
             _targetFolder = (File) savedInstanceState.getSerializable(STATE_FOLDER);
             _runId = savedInstanceState.getLong(STATE_RUN_ID, -1);
+            _sshKeyId = savedInstanceState.getString(STATE_SSH_KEY_ID);
         }
         showFolder();
 
@@ -152,6 +168,22 @@ public class CloneDialog extends DialogFragment {
             root.findViewById(R.id.git_clone_dialog__not_persisted).setVisibility(View.VISIBLE);
         }
         root.findViewById(R.id.git_clone_dialog__choose_folder).setOnClickListener(v -> chooseFolder());
+        root.findViewById(R.id.git_clone_dialog__choose_key).setOnClickListener(v -> chooseKey());
+        _urlEdit.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(final CharSequence s, final int start, final int count, final int after) {
+            }
+
+            @Override
+            public void onTextChanged(final CharSequence s, final int start, final int before, final int count) {
+            }
+
+            @Override
+            public void afterTextChanged(final Editable s) {
+                showTransportFields();
+            }
+        });
+        showTransportFields();
 
         final AlertDialog dialog = new AlertDialog.Builder(context, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
                 .setTitle(R.string.git_clone__title)
@@ -181,6 +213,7 @@ public class CloneDialog extends DialogFragment {
         super.onSaveInstanceState(outState);
         outState.putSerializable(STATE_FOLDER, _targetFolder);
         outState.putLong(STATE_RUN_ID, _runId);
+        outState.putString(STATE_SSH_KEY_ID, _sshKeyId);
     }
 
     @Override
@@ -285,8 +318,10 @@ public class CloneDialog extends DialogFragment {
             return;
         }
 
-        final char[] token = GitUiText.readSecret(_tokenEdit);
-        final String username = GitUiText.trimmedText(_usernameEdit);
+        // An SSH clone authenticates with the key: whatever is in the token field belongs elsewhere
+        // and must not be stored against this host when the repository is registered afterwards.
+        final char[] token = url.isSsh() ? new char[0] : GitUiText.readSecret(_tokenEdit);
+        final String username = url.isSsh() ? "" : GitUiText.trimmedText(_usernameEdit);
         if (token.length > 0 && username.isEmpty()) {
             GitUiText.wipe(token);
             _usernameEdit.setError(context.getString(R.string.git_error__username_required));
@@ -295,7 +330,8 @@ public class CloneDialog extends DialogFragment {
         }
 
         showStatus(null);
-        final boolean started = CloneRunner.get().start(context, url.getUrl(), target, username, token);
+        final boolean started = CloneRunner.get().start(context, url.getUrl(), target, username, token,
+                url.isSsh() ? _sshKeyId : null, url.isSsh());
         GitUiText.wipe(token);
         if (!started) {
             showStatus(context.getString(R.string.git_clone__already_running));
@@ -305,6 +341,48 @@ public class CloneDialog extends DialogFragment {
         // The field is emptied so the token cannot be read back out of the view.
         _tokenEdit.setText("");
         applyRunningState();
+    }
+
+    /**
+     * Shows the fields of the transport the URL names. Same rule as the remote dialog: an unfinished
+     * URL keeps whatever was last shown rather than flickering on every keystroke.
+     */
+    private void showTransportFields() {
+        final GitRemoteUrlValidator.Result url = GitRemoteUrlValidator.validate(GitUiText.trimmedText(_urlEdit));
+        final boolean ssh = url.getTransport() == GitRemoteUrlPolicy.Transport.SSH
+                || url.getTransport() == null && _sshGroup.getVisibility() == View.VISIBLE;
+        _sshGroup.setVisibility(ssh ? View.VISIBLE : View.GONE);
+        _credentialsGroup.setVisibility(ssh ? View.GONE : View.VISIBLE);
+        if (ssh) {
+            showChosenKey();
+        }
+    }
+
+    private void showChosenKey() {
+        final Context context = getContext();
+        if (context == null || _sshKeyText == null) {
+            return;
+        }
+        final GitSshKeyStore store = GitSshKeyStores.get(context);
+        final GitSshKey key = store == null ? null : (_sshKeyId == null ? store.getDefault() : store.get(_sshKeyId));
+        if (key == null) {
+            _sshKeyText.setText(_sshKeyId == null
+                    ? R.string.git_ssh__key_default_none : R.string.git_ssh__key_missing);
+        } else {
+            _sshKeyText.setText(_sshKeyId == null
+                    ? getString(R.string.git_ssh__key_default, key.getName())
+                    : key.getName() + "\n" + key.describe());
+        }
+    }
+
+    private void chooseKey() {
+        if (getActivity() == null || isOurCloneRunning()) {
+            return;
+        }
+        GitSshKeyChooser.show(getActivity(), _sshKeyId, keyId -> {
+            _sshKeyId = keyId;
+            showChosenKey();
+        });
     }
 
     private void onFinished(final GitResult<GitRepoInfo> result, final File target) {
@@ -318,7 +396,8 @@ public class CloneDialog extends DialogFragment {
             return;
         }
         if (!result.isOk()) {
-            showStatus(GitUiText.messageFor(context, result));
+            showStatus(GitUiText.messageFor(context, result,
+                    GitRemoteUrlValidator.validate(GitUiText.trimmedText(_urlEdit)).getTransport()));
             return;
         }
         final File repoRoot = result.getValue() != null ? result.getValue().getWorkTree() : target;
