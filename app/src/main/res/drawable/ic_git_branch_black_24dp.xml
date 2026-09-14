@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+/*#######################################################
+ *
+ *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+ *   License of this file: Apache 2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+#########################################################*/
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24.0"
+    android:viewportHeight="24.0">
+    <!-- Trunk: top-left commit node, line down to the bottom-left node -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M6,2C4.34,2 3,3.34 3,5c0,1.3 0.84,2.4 2,2.82v8.36C3.84,16.6 3,17.7 3,19c0,1.66 1.34,3 3,3s3,-1.34 3,-3c0,-1.3 -0.84,-2.4 -2,-2.82V7.82C8.16,7.4 9,6.3 9,5 9,3.34 7.66,2 6,2zM6,4c0.55,0 1,0.45 1,1s-0.45,1 -1,1 -1,-0.45 -1,-1 0.45,-1 1,-1zM6,18c0.55,0 1,0.45 1,1s-0.45,1 -1,1 -1,-0.45 -1,-1 0.45,-1 1,-1z" />
+    <!-- Branch: node top-right, curving down into the trunk -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M18,3C16.34,3 15,4.34 15,6c0,1.3 0.84,2.4 2,2.82V10c0,1.66 -1.34,3 -3,3H7v2h7c2.76,0 5,-2.24 5,-5V8.82C20.16,8.4 21,7.3 21,6 21,4.34 19.66,3 18,3zM18,5c0.55,0 1,0.45 1,1s-0.45,1 -1,1 -1,-0.45 -1,-1 0.45,-1 1,-1z" />
+</vector>
