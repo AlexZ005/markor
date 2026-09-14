@@ -40,13 +40,9 @@ import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.eclipse.jgit.util.FileUtils;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -67,9 +63,6 @@ final class JGitRemoteOps {
 
     /** Socket timeout for remote operations, in seconds (per read, not per operation). */
     static final int TIMEOUT_SECONDS = 30;
-
-    /** Files larger than this are not scanned for conflict markers (they are assumed resolved). */
-    private static final long MAX_MARKER_SCAN_BYTES = 8L * 1024 * 1024;
 
     private static final String NO_REMOTE = "No remote configured; add one first";
     private static final String DETACHED = "Detached HEAD: check out a branch first";
@@ -518,36 +511,16 @@ final class JGitRemoteOps {
         }
     }
 
-    /** @return those of {@code paths} whose file still has a line starting with {@code <<<<<<<} or {@code >>>>>>>} */
+    /**
+     * @return those of {@code paths} whose file still has a conflict marker line; the definition lives in
+     * {@link GitConflictMarkers} so that the Git tab's <i>Mark resolved</i> check and this method agree
+     */
     static List<String> filesWithConflictMarkers(final File workTree, final Collection<String> paths) throws IOException {
-        final List<String> marked = new ArrayList<>();
-        for (final String path : paths) {
-            final File file = new File(workTree, path);
-            if (!file.isFile() || file.length() > MAX_MARKER_SCAN_BYTES) {
-                continue;
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (isConflictMarker(line)) {
-                        marked.add(path);
-                        break;
-                    }
-                }
-            }
-        }
-        return marked;
+        return GitConflictMarkers.scan(workTree, paths);
     }
 
     static boolean isConflictMarker(final String line) {
-        if (line.length() < 7) {
-            return false;
-        }
-        final String head = line.substring(0, 7);
-        if (!head.equals("<<<<<<<") && !head.equals(">>>>>>>")) {
-            return false;
-        }
-        return line.length() == 7 || line.charAt(7) == ' ' || line.charAt(7) == '\t';
+        return GitConflictMarkers.isMarkerLine(line);
     }
 
     // ---------------------------------------------------------------- remote configuration / ls-remote
