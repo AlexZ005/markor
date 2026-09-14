@@ -899,6 +899,10 @@ public class GitFragment extends MarkorBaseFragment {
     /** Forgets a repository. Files and commits are never touched. */
     private void removeRepository(final GitRepoConfig repo) {
         _registry.remove(repo.getPath());
+        // Cancels anything still running against the folder the user just forgot - a pull would keep
+        // writing into its working tree - and releases the worker thread, which is otherwise held for
+        // the life of the process. This is what GitTaskRunner.shutdownRepo is documented for.
+        GitTaskRunner.get().shutdownRepo(repo.getPath());
         final List<GitRepoConfig> rest = _registry.list();
         if (!rest.isEmpty()) {
             _registry.setActive(rest.get(0).getPath());
