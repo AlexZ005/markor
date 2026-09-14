@@ -50,6 +50,7 @@ import net.gsantner.markor.git.GitCredentialStore;
 import net.gsantner.markor.git.GitCredentialsSource;
 import net.gsantner.markor.git.GitFetchThrottle;
 import net.gsantner.markor.git.GitHistoryPager;
+import net.gsantner.markor.git.GitPaths;
 import net.gsantner.markor.git.GitProgress;
 import net.gsantner.markor.git.GitPullStrategy;
 import net.gsantner.markor.git.GitRelativeTime;
@@ -1631,11 +1632,11 @@ public class GitFragment extends MarkorBaseFragment {
 
     private void openInEditor(final String path) {
         final Activity activity = getActivity();
-        final File file = _repoRoot == null ? null : new File(_repoRoot, path);
-        if (activity == null || file == null) {
+        final File file = GitPaths.resolveInside(_repoRoot, path);
+        if (activity == null) {
             return;
         }
-        if (!file.isFile()) {
+        if (file == null || !file.isFile()) {
             Toast.makeText(activity, R.string.git_file_not_in_working_tree, Toast.LENGTH_SHORT).show();
             return;
         }

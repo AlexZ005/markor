@@ -108,8 +108,8 @@ public final class GitConflictMarkers {
             if (path == null) {
                 continue;
             }
-            final File file = new File(workTree, path);
-            if (!file.isFile() || file.length() > MAX_SCAN_BYTES) {
+            final File file = GitPaths.resolveInside(workTree, path);
+            if (file == null || !file.isFile() || file.length() > MAX_SCAN_BYTES) {
                 continue;
             }
             if (fileHasMarkers(file)) {

@@ -398,7 +398,8 @@ final class JGitLocalOps {
             final List<String> existing = new ArrayList<>();
             final List<String> removed = new ArrayList<>();
             for (final String path : wanted) {
-                (new File(workTree, path).exists() ? existing : removed).add(path);
+                final File file = GitPaths.resolveInside(workTree, path);
+                (file != null && file.exists() ? existing : removed).add(path);
             }
             if (!existing.isEmpty()) {
                 final AddCommand add = git.add();

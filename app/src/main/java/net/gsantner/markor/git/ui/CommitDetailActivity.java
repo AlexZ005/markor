@@ -37,6 +37,7 @@ import net.gsantner.markor.frontend.MarkorDialogFactory;
 import net.gsantner.markor.git.GitCancelToken;
 import net.gsantner.markor.git.GitCommitInfo;
 import net.gsantner.markor.git.GitDiff;
+import net.gsantner.markor.git.GitPaths;
 import net.gsantner.markor.git.GitProgress;
 import net.gsantner.markor.git.GitResult;
 import net.gsantner.markor.git.GitService;
@@ -305,7 +306,8 @@ public class CommitDetailActivity extends MarkorBaseActivity {
     private List<GitDiff.FileChange> filesInWorkingTree() {
         final List<GitDiff.FileChange> existing = new ArrayList<>();
         for (final GitDiff.FileChange file : _files) {
-            if (new File(_repoRoot, file.getPath()).isFile()) {
+            final File inTree = GitPaths.resolveInside(_repoRoot, file.getPath());
+            if (inTree != null && inTree.isFile()) {
                 existing.add(file);
             }
         }
@@ -343,8 +345,8 @@ public class CommitDetailActivity extends MarkorBaseActivity {
     }
 
     private void openInEditor(final String path) {
-        final File file = new File(_repoRoot, path);
-        if (!file.isFile()) {
+        final File file = GitPaths.resolveInside(_repoRoot, path);
+        if (file == null || !file.isFile()) {
             Toast.makeText(this, R.string.git_file_not_in_working_tree, Toast.LENGTH_SHORT).show();
             return;
         }

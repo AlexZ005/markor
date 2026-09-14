@@ -440,7 +440,11 @@ final class JGitRemoteOps {
                 if (inHead.contains(path)) {
                     restore.add(path);
                 } else {
-                    deleteQuietly(new File(repo.getWorkTree(), path));
+                    // Containment check before a recursive delete: the path comes from the index.
+                    final File file = GitPaths.resolveInside(repo.getWorkTree(), path);
+                    if (file != null) {
+                        deleteQuietly(file);
+                    }
                 }
             }
             if (!restore.isEmpty()) {
@@ -509,7 +513,8 @@ final class JGitRemoteOps {
         AddCommand add = null;
         RmCommand rm = null;
         for (final String path : paths) {
-            if (new File(workTree, path).exists()) {
+            final File file = GitPaths.resolveInside(workTree, path);
+            if (file != null && file.exists()) {
                 add = (add == null ? git.add() : add).addFilepattern(path);
             } else {
                 rm = (rm == null ? git.rm() : rm).addFilepattern(path);
