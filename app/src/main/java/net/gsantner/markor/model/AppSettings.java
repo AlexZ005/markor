@@ -332,7 +332,8 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
     }
 
     public boolean isShowSettingsOptionInMainToolbar() {
-        return false; // getBool(R.string.pref_key__show_settings_option_in_main_toolbar, true);
+        // Always shown: Settings used to be one tap away on the More tab, which is now the Git tab
+        return true;
     }
 
     public boolean isHighlightingHexColorEnabled() {

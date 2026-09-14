@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 import androidx.annotation.StringRes;
 import androidx.appcompat.widget.Toolbar;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.preference.Preference;
@@ -77,28 +78,48 @@ public class SettingsActivity extends MarkorBaseActivity {
         setSupportActionBar(findViewById(R.id.toolbar));
         toolbar.setNavigationIcon(getResources().getDrawable(R.drawable.ic_arrow_back_white_24dp));
         toolbar.setNavigationOnClickListener(view -> SettingsActivity.this.onBackPressed());
-        showFragment(SettingsFragmentMaster.TAG, false);
+        if (b == null) {
+            showFragment(SettingsFragmentMaster.TAG, false);
+        } else {
+            // The FragmentManager restored the fragments (master, maybe About on top); only the title is ours
+            toolbar.setTitle(getToolbarTitle(getVisibleFragment()));
+        }
     }
 
     protected void showFragment(String tag, boolean addToBackStack) {
-        String toolbarTitle = getString(R.string.settings);
         GsPreferenceFragmentBase prefFrag = (GsPreferenceFragmentBase) getSupportFragmentManager().findFragmentByTag(tag);
         if (prefFrag == null) {
             switch (tag) {
+                case MoreInfoFragment.TAG: {
+                    prefFrag = MoreInfoFragment.newInstance();
+                    break;
+                }
                 case SettingsFragmentMaster.TAG:
                 default: {
                     prefFrag = new SettingsFragmentMaster();
-                    toolbarTitle = prefFrag.getTitleOrDefault(toolbarTitle);
                     break;
                 }
             }
         }
-        toolbar.setTitle(toolbarTitle);
+        toolbar.setTitle(getToolbarTitle(prefFrag));
         FragmentTransaction t = getSupportFragmentManager().beginTransaction();
         if (addToBackStack) {
             t.addToBackStack(tag);
         }
         t.replace(R.id.settings__activity__fragment_placeholder, prefFrag, tag).commit();
+    }
+
+    private Fragment getVisibleFragment() {
+        return getSupportFragmentManager().findFragmentById(R.id.settings__activity__fragment_placeholder);
+    }
+
+    private String getToolbarTitle(final Fragment frag) {
+        if (frag instanceof MoreInfoFragment) {
+            return getString(R.string.about_markor);
+        } else if (frag instanceof GsPreferenceFragmentBase) {
+            return ((GsPreferenceFragmentBase) frag).getTitleOrDefault(getString(R.string.settings));
+        }
+        return getString(R.string.settings);
     }
 
     @Override
@@ -132,9 +153,16 @@ public class SettingsActivity extends MarkorBaseActivity {
 
     @Override
     public void onBackPressed() {
-        GsPreferenceFragmentBase prefFrag = (GsPreferenceFragmentBase) getSupportFragmentManager().findFragmentByTag(SettingsFragmentMaster.TAG);
-        if (prefFrag != null && prefFrag.canGoBack()) {
-            prefFrag.goBack();
+        final FragmentManager fm = getSupportFragmentManager();
+        final Fragment visible = getVisibleFragment();
+        if (visible instanceof GsPreferenceFragmentBase && ((GsPreferenceFragmentBase) visible).canGoBack()) {
+            ((GsPreferenceFragmentBase) visible).goBack();
+            return;
+        }
+        if (fm.getBackStackEntryCount() > 0) {
+            // Back from a sub-screen fragment (About) to the master settings screen
+            fm.popBackStackImmediate();
+            toolbar.setTitle(getToolbarTitle(getVisibleFragment()));
             return;
         }
         super.onBackPressed();
@@ -386,6 +414,12 @@ public class SettingsActivity extends MarkorBaseActivity {
                 case R.string.pref_key__restore_settings: {
                     BackupUtils.showBackupSelectFromDialog(getContext(), getFragmentManager());
                     break;
+                }
+                case R.string.pref_key__settings__about: {
+                    if (getActivity() instanceof SettingsActivity) {
+                        ((SettingsActivity) getActivity()).showFragment(MoreInfoFragment.TAG, true);
+                    }
+                    return true;
                 }
             }
 
