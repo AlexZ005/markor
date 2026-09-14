@@ -180,6 +180,35 @@ No other rule was needed. In particular:
 
 ### (a) 8.1b — key store and Settings UI
 
+**Shipped 2026-09-14.** What it ended up as, where it differs from the list below:
+
+- `GitSshKeyStore` (plain Java, JVM-tested) over `filesDir/git/ssh`: `index.json` with names, types, sizes,
+  public-key lines, fingerprints and the default key id, and `<id>/key.enc` per key — the private key
+  wrapped with an AES/GCM key in the Android Keystore (`GitSshKeyStores.KeystoreVault`, alias
+  `markor.git.ssh.vault`). Not `PasswordStore`: that keeps its ciphertext in `SharedPreferences`, which is
+  the wrong place for a private key; only the encryption key is in the Keystore here.
+- **Generated** keys are OpenSSH v1 without a passphrase, as decided. **Imported** keys are stored *exactly
+  as the file had them* instead of being rewritten: a passphrase-protected file therefore stays protected,
+  `GitSshKey.hasPassphrase()` is `true`, and the passphrase is never stored — 8.1c has to ask for it before
+  the operation. It also means no format conversion can damage an imported key.
+- `GitSshKeySelection.resolve(repo, store)` is the only place that answers "which key does this repository
+  use". A repository that names a key the store no longer has resolves to **nothing**, not to the default:
+  substituting another identity behind the user's back is what the 7.5 review refuses elsewhere.
+  `isSelectedKeyMissing()` is how the UI says so.
+- An ed25519 import is accepted, named and fingerprinted, and `Type.canAuthenticate()` is `false` for it:
+  `setDefault` refuses it, the per-repository chooser leaves it out, and the list says "This build cannot
+  sign with this key type". Note JSch reports its key size in **bytes** (32), so `GitSshKeyStore.bitsOf`
+  converts it to the 256 that `ssh-keygen` prints.
+- `getDefault()` reports what the index says even if that key cannot authenticate (only an index written by
+  another build can get into that state), so **8.1c must check `canAuthenticate()`** before building an
+  `Identity` rather than trusting the selection.
+- The private key leaves the store only through `loadPrivateKey(id)`, as bytes the caller wipes; 8.1c builds
+  `GitSshSessionFactory.Identity(name, privateKeyBytes, publicKeyLine bytes, passphraseBytes)` from it.
+- `RemoteSetupDialog` shows the "SSH key for this repository" row as soon as the typed URL is SSH-shaped,
+  which it asks `GitRemoteUrlValidator` for by looking at `Problem.SSH_NOT_SUPPORTED`. When 8.1c replaces
+  that with a transport marker on a *valid* result, `RemoteSetupDialog.isSshUrl` reads the marker instead.
+  The pick is stored immediately, not on Save, because the URL next to it is still refused on that branch.
+
 1. Keys in app-private storage, the private key encrypted with an Android Keystore-wrapped key, exactly as `GitCredentialStore` already does for the token. Write **OpenSSH v1** bytes; never `writePrivateKey(out, passphrase)`.
 2. A registry with one **default key**, and `GitRepoConfig.sshKeyId` for the per-repository override (default = the app default). Gson-serialised like the rest of `GitRepoConfig`; remember the ProGuard `-keepclassmembers` rule for new serialised fields.
 3. Settings > Git, identity section, right after "Author name"/"Author e-mail": **generate** (RSA 4096 default; offer ECDSA nistp256; **do not offer ed25519**), **import from file**, **copy/share the public key**, **set default**, **delete**. Show `type · bits · SHA256:…` for each key.

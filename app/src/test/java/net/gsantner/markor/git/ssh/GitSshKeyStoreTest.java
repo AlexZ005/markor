@@ -124,6 +124,17 @@ public class GitSshKeyStoreTest {
                 .isEqualTo(key.getFingerprintSha256());
     }
 
+    @Test
+    public void anEdDsaKeySizeIsReportedInBitsNotBytes() {
+        // JSch's KeyPairEd25519.getKeySize() returns 32, i.e. bytes; ssh-keygen says 256.
+        assertThat(GitSshKeyStore.bitsOf(GitSshKey.Type.ED25519, 32)).isEqualTo(256);
+        assertThat(GitSshKeyStore.bitsOf(GitSshKey.Type.UNKNOWN, 57)).isEqualTo(456);
+        assertThat(GitSshKeyStore.bitsOf(GitSshKey.Type.RSA, 4096)).isEqualTo(4096);
+        assertThat(GitSshKeyStore.bitsOf(GitSshKey.Type.ECDSA, 521)).isEqualTo(521);
+        assertThat(GitSshKeyStore.bitsOf(GitSshKey.Type.RSA, 0)).isZero();
+        assertThat(GitSshKeyStore.bitsOf(GitSshKey.Type.ED25519, -1)).isZero();
+    }
+
     // ---------------------------------------------------------------- import
 
     @Test
