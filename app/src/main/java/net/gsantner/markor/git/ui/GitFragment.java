@@ -401,9 +401,13 @@ public class GitFragment extends MarkorBaseFragment {
         } else {
             _renderedConflictFiles.clear();
         }
-        _pullButton.setEnabled(!busy);
-        _commitButton.setEnabled(!busy);
-        _pushButton.setEnabled(!busy);
+        // Task 7.2: nothing is enabled while the repository could not be read at all, and a detached
+        // HEAD has no branch to pull into or push from — only committing still makes sense there.
+        final boolean readable = _info != null;
+        final boolean onBranch = readable && !_info.isDetached();
+        _pullButton.setEnabled(!busy && onBranch);
+        _commitButton.setEnabled(!busy && readable);
+        _pushButton.setEnabled(!busy && onBranch);
         _actions.setAlpha(busy ? 0.5f : 1f);
         _swipe.setRefreshing(_refreshing);
 
@@ -469,7 +473,11 @@ public class GitFragment extends MarkorBaseFragment {
             return "";
         }
         if (_info.isDetached()) {
-            return context.getString(R.string.git_tab__detached_head);
+            // GitRepoInfo abbreviates the commit id into getBranch() for a detached HEAD (task 7.2).
+            final String sha = _info.getBranch();
+            return sha == null || sha.isEmpty()
+                    ? context.getString(R.string.git_tab__detached_head)
+                    : context.getString(R.string.git_tab__detached_head_at, sha);
         }
         final String branch = _info.getBranch();
         return branch == null || branch.isEmpty() ? context.getString(R.string.git_tab__no_branch_yet) : branch;
@@ -485,6 +493,10 @@ public class GitFragment extends MarkorBaseFragment {
     private String syncLabel(final Context context) {
         if (_loadError != null) {
             return _loadError;
+        }
+        // Task 7.2: the header is the only place that can explain two greyed-out buttons.
+        if (_info != null && _info.isDetached() && (_flow == null || !_flow.isResolving())) {
+            return context.getString(R.string.git_tab__detached_head_hint);
         }
         final GitRelativeTime.Label label = GitRelativeTime.of(_lastFetchMillis, System.currentTimeMillis());
         final String text;
