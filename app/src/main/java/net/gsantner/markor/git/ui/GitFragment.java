@@ -562,6 +562,9 @@ public class GitFragment extends MarkorBaseFragment {
             _afterRefresh = null;
             return;
         }
+        // Task 4.2, before any early return: every time this tab is looked at, what the To-Do and
+        // QuickNote tabs show is written to disk, so git (and the user) see the same thing.
+        flushOpenEditors();
         _active = _registry.getActive();
         final File previousRoot = _repoRoot;
         _repoRoot = _active != null ? _active.getFile() : null;
@@ -592,7 +595,6 @@ public class GitFragment extends MarkorBaseFragment {
         }
 
         final File root = _repoRoot;
-        flushOpenEditors(); // task 4.2: the status must see what the To-Do and QuickNote tabs show
         resetHistory();
         _refreshing = true;
         render();
