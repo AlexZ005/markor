@@ -87,6 +87,32 @@
             android:textAppearance="@style/TextAppearance.AppCompat.Caption"
             android:visibility="gone" />
 
+        <!-- Shown only for an SSH remote: an SSH URL carries no token, it uses a key (task 8.1b). -->
+        <LinearLayout
+            android:id="@+id/git_remote_setup_dialog__ssh_key_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/git_ssh_keys__repo_key"
+                android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
+
+            <TextView
+                android:id="@+id/git_remote_setup_dialog__ssh_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:minHeight="40dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:textSize="15sp" />
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

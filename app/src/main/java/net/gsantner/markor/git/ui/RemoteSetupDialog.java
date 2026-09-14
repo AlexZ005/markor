@@ -7,10 +7,13 @@
 #########################################################*/
 package net.gsantner.markor.git.ui;
 
+import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
@@ -23,6 +26,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 
 import net.gsantner.markor.R;
+import net.gsantner.markor.frontend.MarkorDialogFactory;
 import net.gsantner.markor.git.GitCredentialStore;
 import net.gsantner.markor.git.GitCredentialsSource;
 import net.gsantner.markor.git.GitProgress;
@@ -33,13 +37,24 @@ import net.gsantner.markor.git.GitService;
 import net.gsantner.markor.git.GitSettingsStore;
 import net.gsantner.markor.git.GitTaskRunner;
 import net.gsantner.markor.git.JGitService;
+import net.gsantner.markor.git.ssh.GitSshKey;
+import net.gsantner.markor.git.ssh.GitSshKeyStore;
+import net.gsantner.markor.git.ssh.GitSshKeyStores;
+import net.gsantner.opoc.frontend.GsSearchOrCustomTextDialog;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Configures the remote of one registered repository (roadmap task 5.1): URL, username and personal
  * access token, with a <i>Test connection</i> button that runs {@code ls-remote}.
+ * <p>
+ * When the URL is an SSH one, an <b>SSH key</b> row appears instead of asking for a token: the
+ * app's default key, or one named for this repository alone, stored as
+ * {@link GitRepoConfig#getSshKeyId()} (roadmap task 8.1b). Picking a key takes effect at once,
+ * because which key a repository uses is a setting of its own and must not be lost when the URL
+ * next to it is refused. The keys themselves are managed in Settings &gt; Git &gt; SSH key.
  * <p>
  * Only HTTPS is offered (decision D4); {@link GitRemoteUrlValidator} explains every refusal. Saving
  * writes the URL both into the repository's {@code .git/config} (remote {@code origin}) and onto the
@@ -75,10 +90,16 @@ public class RemoteSetupDialog extends DialogFragment {
     private GitService _service;
     private GitRepoRegistry _registry;
 
+    private GitSshKeyStore _sshKeyStore;
+    /** The repository's stored selection: an id, or null for "the app default". */
+    private String _sshKeyId;
+
     private EditText _urlEdit;
     private EditText _usernameEdit;
     private EditText _tokenEdit;
     private TextView _statusText;
+    private TextView _sshKeyText;
+    private View _sshKeyBlock;
     private ProgressBar _busy;
     private boolean _testing;
 
@@ -118,6 +139,9 @@ public class RemoteSetupDialog extends DialogFragment {
         _tokenEdit = root.findViewById(R.id.git_remote_setup_dialog__token);
         _statusText = root.findViewById(R.id.git_remote_setup_dialog__status);
         _busy = root.findViewById(R.id.git_remote_setup_dialog__busy);
+        _sshKeyBlock = root.findViewById(R.id.git_remote_setup_dialog__ssh_key_block);
+        _sshKeyText = root.findViewById(R.id.git_remote_setup_dialog__ssh_key);
+        _sshKeyStore = GitSshKeyStores.get(context);
 
         final GitRepoConfig repo = _registry.get(getRepoPath());
         final TextView repoText = root.findViewById(R.id.git_remote_setup_dialog__repo);
@@ -134,6 +158,26 @@ public class RemoteSetupDialog extends DialogFragment {
             root.findViewById(R.id.git_remote_setup_dialog__not_persisted).setVisibility(View.VISIBLE);
         }
 
+        // Read from the registry, not from the instance state: the selection is persisted as soon
+        // as it is made, so a rotation and a process death both show what is actually stored.
+        _sshKeyId = repo == null ? null : repo.getSshKeyId();
+        _sshKeyText.setOnClickListener(v -> chooseSshKey());
+        _urlEdit.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(final CharSequence s, final int start, final int count, final int after) {
+            }
+
+            @Override
+            public void onTextChanged(final CharSequence s, final int start, final int before, final int count) {
+            }
+
+            @Override
+            public void afterTextChanged(final Editable s) {
+                updateSshKeyRow();
+            }
+        });
+        updateSshKeyRow();
+
         final AlertDialog dialog = new AlertDialog.Builder(context, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
                 .setTitle(R.string.git_remote_setup__title)
                 .setView(root)
@@ -148,6 +192,91 @@ public class RemoteSetupDialog extends DialogFragment {
             dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener(v -> testConnection());
         });
         return dialog;
+    }
+
+    // ---------------------------------------------------------------- ssh key
+
+    /**
+     * Whether the typed URL is an SSH one. Asked of {@link GitRemoteUrlValidator}, which still
+     * refuses SSH on this branch and names it as the reason; task 8.1c replaces that with a
+     * transport marker on a valid result, and this method with a read of it.
+     */
+    private boolean isSshUrl(final String url) {
+        return GitRemoteUrlValidator.validate(url).getProblem() == GitRemoteUrlValidator.Problem.SSH_NOT_SUPPORTED;
+    }
+
+    private void updateSshKeyRow() {
+        final Context context = getContext();
+        if (context == null || _sshKeyBlock == null) {
+            return;
+        }
+        final boolean ssh = isSshUrl(GitUiText.trimmedText(_urlEdit));
+        _sshKeyBlock.setVisibility(ssh ? View.VISIBLE : View.GONE);
+        if (!ssh) {
+            return;
+        }
+        _sshKeyText.setText(sshKeyLabel(context));
+    }
+
+    private String sshKeyLabel(final Context context) {
+        if (_sshKeyId != null) {
+            final GitSshKey selected = _sshKeyStore.get(_sshKeyId);
+            return selected != null
+                    ? selected.getName() + "\n" + selected.getFingerprintSha256()
+                    : context.getString(R.string.git_ssh_keys__repo_key_missing);
+        }
+        final GitSshKey fallback = _sshKeyStore.getDefault();
+        return fallback == null
+                ? context.getString(R.string.git_ssh_keys__repo_key_default_none)
+                : context.getString(R.string.git_ssh_keys__repo_key_default, fallback.getName());
+    }
+
+    /** Default key or one of the usable named keys; ed25519 keys are not offered (ADR 0002). */
+    private void chooseSshKey() {
+        final Activity activity = getActivity();
+        final Context context = getContext();
+        if (activity == null || context == null) {
+            return;
+        }
+        final List<GitSshKey> keys = new ArrayList<>();
+        for (final GitSshKey key : _sshKeyStore.list()) {
+            if (key.canAuthenticate()) {
+                keys.add(key);
+            }
+        }
+        final List<String> rows = new ArrayList<>();
+        final GitSshKey fallback = _sshKeyStore.getDefault();
+        rows.add(fallback == null
+                ? context.getString(R.string.git_ssh_keys__repo_key_default_none)
+                : context.getString(R.string.git_ssh_keys__repo_key_default, fallback.getName()));
+        for (final GitSshKey key : keys) {
+            rows.add(key.getName() + "\n" + key.describe());
+        }
+
+        final GsSearchOrCustomTextDialog.DialogOptions dopt = MarkorDialogFactory.baseConf(context);
+        dopt.data = rows;
+        dopt.titleText = R.string.git_ssh_keys__repo_key;
+        dopt.isSearchEnabled = rows.size() > 8;
+        dopt.isSoftInputVisible = false;
+        dopt.okButtonText = 0;
+        dopt.positionCallback = indices -> {
+            if (indices.isEmpty()) {
+                return;
+            }
+            final int index = indices.get(0);
+            selectSshKey(index == 0 ? null : keys.get(index - 1).getId());
+        };
+        GsSearchOrCustomTextDialog.showMultiChoiceDialogWithSearchFilterUI(activity, dopt);
+    }
+
+    /** @param keyId a stored key id, or null for "use the app default" */
+    private void selectSshKey(final String keyId) {
+        _sshKeyId = keyId;
+        final GitRepoConfig repo = _registry.get(getRepoPath());
+        if (repo != null) {
+            _registry.update(repo.setSshKeyId(keyId));
+        }
+        updateSshKeyRow();
     }
 
     // ---------------------------------------------------------------- test connection
@@ -239,6 +368,7 @@ public class RemoteSetupDialog extends DialogFragment {
         final String remoteUrl = url.getUrl();
         final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
         final GitRepoRegistry registry = _registry;
+        final String sshKeyId = _sshKeyId;
         // Storing happens in the task, right behind the git call, so that a rotation cannot lose the
         // write half-way through — and so the token is wiped even when the callback is dropped.
         GitTaskRunner.get().submit(repo.getPath(),
@@ -246,7 +376,7 @@ public class RemoteSetupDialog extends DialogFragment {
                     try {
                         final GitResult<Void> written = _service.setRemoteUrl(repoDir, remoteUrl, GitProgress.NONE);
                         if (written.isOk()) {
-                            registry.update(repo.setRemoteUrl(remoteUrl));
+                            registry.update(repo.setRemoteUrl(remoteUrl).setSshKeyId(sshKeyId));
                             GitUiText.saveCredentials(appContext, remoteUrl, username, token);
                         }
                         return written;

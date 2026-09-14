@@ -21,6 +21,10 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import net.gsantner.markor.git.GitRepoConfig;
 import net.gsantner.markor.git.GitSettingsStore;
+import net.gsantner.markor.git.ssh.GitSshKey;
+import net.gsantner.markor.git.ssh.GitSshKeySelection;
+import net.gsantner.markor.git.ssh.GitSshKeyStore;
+import net.gsantner.markor.git.ssh.GitSshKeyStores;
 import net.gsantner.markor.git.ui.CloneDialog;
 import net.gsantner.markor.git.ui.RemoteSetupDialog;
 
@@ -51,6 +55,7 @@ public class GitRemoteDialogsTestActivity extends AppCompatActivity {
         root.addView(button("Clone repository", v -> showCloneDialog()));
         root.addView(button("Remote repository (active repo)", v -> showRemoteSetupDialog()));
         root.addView(button("Print the registry", v -> printRegistry()));
+        root.addView(button("Print the SSH keys and selections", v -> printSshKeys()));
 
         _log = new TextView(this);
         _log.setTextIsSelectable(true);
@@ -93,6 +98,27 @@ public class GitRemoteDialogsTestActivity extends AppCompatActivity {
     private void printRegistry() {
         for (final GitRepoConfig repo : GitSettingsStore.newRegistry().list()) {
             log(repo.toString());
+        }
+    }
+
+    /**
+     * What task 8.1b stored: the keys, the default, and which key each repository resolves to. Only
+     * public information - names, types and fingerprints; never a private key.
+     */
+    private void printSshKeys() {
+        final GitSshKeyStore store = GitSshKeyStores.get(this);
+        log("store usable=" + store.isUsable() + " root=" + store.getRoot());
+        for (final GitSshKey key : store.list()) {
+            log(key.toString() + " name=" + key.getName());
+            log("  " + key.getPublicKeyLine());
+        }
+        final GitSshKey def = store.getDefault();
+        log("default=" + (def == null ? "none" : def.getName() + " " + def.getFingerprintSha256()));
+        for (final GitRepoConfig repo : GitSettingsStore.newRegistry().list()) {
+            final GitSshKey resolved = GitSshKeySelection.resolve(repo, store);
+            log(repo.getDisplayName() + ": sshKeyId=" + repo.getSshKeyId()
+                    + " resolved=" + (resolved == null ? "none" : resolved.getName())
+                    + " missing=" + GitSshKeySelection.isSelectedKeyMissing(repo, store));
         }
     }
 
