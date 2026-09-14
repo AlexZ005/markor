@@ -11,6 +11,8 @@ import android.content.Context;
 
 import net.gsantner.markor.git.GitCancelToken;
 import net.gsantner.markor.git.GitCredentialStore;
+import net.gsantner.markor.git.GitCredentialsSource;
+import net.gsantner.markor.git.GitSshAuthSource;
 import net.gsantner.markor.git.GitProgress;
 import net.gsantner.markor.git.GitRepoConfig;
 import net.gsantner.markor.git.GitRepoInfo;
@@ -58,6 +60,8 @@ final class CloneRunner {
     private String _url;
     private String _username;
     private char[] _token;
+    private String _sshKeyId;
+    private boolean _ssh;
     private GitCancelToken _cancelToken;
     private boolean _running;
     private long _runId;
@@ -114,7 +118,14 @@ final class CloneRunner {
      * @param token    copied; the caller wipes its own array. Empty means "no credentials".
      * @return {@code false} when a clone is already running; nothing was started then
      */
-    boolean start(final Context context, final String url, final File target, final String username, final char[] token) {
+    /**
+     * @param sshKeyId the SSH key the user picked, or {@code null} for the app default; ignored
+     *                 unless {@code ssh} is true
+     * @param ssh      whether the URL authenticates with a key rather than a token — decided by
+     *                 {@code GitRemoteUrlValidator}, which is the same rule the git layer applies
+     */
+    boolean start(final Context context, final String url, final File target, final String username,
+                  final char[] token, final String sshKeyId, final boolean ssh) {
         if (_running) {
             return false;
         }
@@ -123,6 +134,8 @@ final class CloneRunner {
         _target = target;
         _username = username;
         _token = token == null ? new char[0] : token.clone();
+        _sshKeyId = sshKeyId;
+        _ssh = ssh;
         _task = null;
         _percent = GitProgress.UNKNOWN;
         _undeliveredRunId = -1;
@@ -132,10 +145,15 @@ final class CloneRunner {
 
         final GitFixedCredentials credentials = new GitFixedCredentials(
                 GitCredentialStore.hostKey(url), username, _token);
+        // The key is pinned to this URL, and the fingerprint dialog asks whichever activity is in
+        // front - a clone outlives the dialog that started it, rotation included.
+        final GitCredentialsSource sources = GitCredentials.of(credentials,
+                ssh ? GitSshAuth.forChosenKey(_appContext, sshKeyId, url, new GitSshUiPrompts())
+                        : GitSshAuthSource.NONE);
         _cancelToken = GitTaskRunner.get().submit(target.getAbsolutePath(),
                 cancelToken -> {
                     try {
-                        return new JGitService().clone(url, target, credentials,
+                        return new JGitService().clone(url, target, sources,
                                 new GitUiProgress(cancelToken, this::onProgress));
                     } finally {
                         credentials.wipe();
@@ -216,12 +234,15 @@ final class CloneRunner {
         final GitRepoRegistry registry = GitSettingsStore.newRegistry();
         final GitRepoConfig config = new GitRepoConfig(workTree.getAbsolutePath())
                 .setRemoteUrl(_url)
+                .setSshKeyId(_ssh ? _sshKeyId : null)
                 .setAddedEpoch(System.currentTimeMillis());
         if (info != null && info.getBranch() != null) {
             config.setDefaultBranch(info.getBranch());
         }
         registry.add(config);
         registry.setActive(config.getPath());
-        GitUiText.saveCredentials(_appContext, _url, _username, _token);
+        if (!_ssh) {
+            GitUiText.saveCredentials(_appContext, _url, _username, _token);
+        }
     }
 }

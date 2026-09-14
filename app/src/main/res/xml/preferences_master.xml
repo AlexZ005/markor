@@ -703,6 +703,14 @@
                 android:title="@string/git_settings__confirm_before_push" />
         </PreferenceCategory>
 
+        <PreferenceCategory android:title="@string/git_settings__ssh">
+            <Preference
+                android:icon="@drawable/ic_lock_outline_black_24dp"
+                android:key="@string/pref_key__git_known_hosts"
+                android:summary="@string/git_settings__known_hosts_summary"
+                android:title="@string/git_settings__known_hosts" />
+        </PreferenceCategory>
+
         <PreferenceCategory android:title="@string/git_settings__changes_list">
             <CheckBoxPreference
                 android:defaultValue="true"

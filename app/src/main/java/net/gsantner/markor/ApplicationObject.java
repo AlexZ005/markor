@@ -11,6 +11,7 @@ import android.webkit.WebView;
 
 import androidx.multidex.MultiDexApplication;
 
+import net.gsantner.markor.git.ui.GitForegroundActivity;
 import net.gsantner.markor.model.AppSettings;
 
 public class ApplicationObject extends MultiDexApplication {
@@ -40,6 +41,9 @@ public class ApplicationObject extends MultiDexApplication {
         super.onCreate();
         _app = this;
         _appSettings = new AppSettings(getApplicationContext());
+        // Git tab: the SSH fingerprint and passphrase dialogs have to find a window even when the
+        // fragment that started the operation is being recreated (task 8.1c).
+        GitForegroundActivity.install(this);
 
         // Per https://stackoverflow.com/a/54191884/4717438
         try {

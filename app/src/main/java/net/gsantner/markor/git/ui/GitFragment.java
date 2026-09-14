@@ -1578,7 +1578,7 @@ public class GitFragment extends MarkorBaseFragment {
             return GitCredentialsSource.NONE;
         }
         return GitCredentials.of(GitCredentialStore.get(context).asSource(),
-                GitSshAuth.forRegistry(context, new GitSshUiPrompts(this::getActivity)));
+                GitSshAuth.forRegistry(context, new GitSshUiPrompts()));
     }
 
     // ---------------------------------------------------------------- overflow menu

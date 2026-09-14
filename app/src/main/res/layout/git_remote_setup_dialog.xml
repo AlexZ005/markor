@@ -47,6 +47,15 @@
             android:singleLine="true"
             android:textSize="15sp" />
 
+        <!-- One of the two below is shown at a time, decided by the URL: a token for https, a key
+             for SSH. Offering both would invite someone to fill in a token an SSH remote cannot
+             use, and an empty token must not be stored against an SSH host (task 8.1c). -->
+        <LinearLayout
+            android:id="@+id/git_remote_setup_dialog__credentials_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -86,6 +95,7 @@
             android:text="@string/git_remote__token_not_persisted"
             android:textAppearance="@style/TextAppearance.AppCompat.Caption"
             android:visibility="gone" />
+        </LinearLayout>
 
         <!-- Shown only for an SSH remote: an SSH URL carries no token, it uses a key (task 8.1b). -->
         <LinearLayout
@@ -111,6 +121,12 @@
                 android:paddingTop="8dp"
                 android:paddingBottom="8dp"
                 android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/git_ssh__hint"
+                android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
         </LinearLayout>
 
         <LinearLayout

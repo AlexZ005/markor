@@ -58,7 +58,15 @@ public final class GitSshUiPrompts implements GitSshPrompts {
     private final Handler _main = new Handler(Looper.getMainLooper());
 
     public GitSshUiPrompts(final ActivitySource activitySource) {
-        _activitySource = activitySource;
+        _activitySource = activitySource == null ? GitForegroundActivity::get : activitySource;
+    }
+
+    /**
+     * Asks whichever activity is in front. The right choice for an operation that outlives the view
+     * that started it — a clone survives the rotation that destroys its dialog.
+     */
+    public GitSshUiPrompts() {
+        this(GitForegroundActivity::get);
     }
 
     // ---------------------------------------------------------------- host key
@@ -124,7 +132,7 @@ public final class GitSshUiPrompts implements GitSshPrompts {
         }
         final CountDownLatch answered = new CountDownLatch(1);
         _main.post(() -> {
-            final Activity activity = _activitySource == null ? null : _activitySource.getActivity();
+            final Activity activity = _activitySource.getActivity();
             if (activity == null || activity.isFinishing()) {
                 answered.countDown();
                 return;
