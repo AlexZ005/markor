@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+/*#######################################################
+ *
+ *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+ *   License of this file: Apache 2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+#########################################################*/
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/git__ssh_key__generate_dialog__name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/git_ssh_keys__name_hint"
+        android:importantForAutofill="no"
+        android:inputType="text|textCapSentences"
+        android:maxLines="1"
+        android:textColor="@color/primary_text"
+        android:textColorHint="@color/secondary_text"
+        android:textSize="16sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/git_ssh_keys__type"
+        android:textAllCaps="true"
+        android:textColor="@color/secondary_text"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/git__ssh_key__generate_dialog__type"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <RadioButton
+            android:id="@+id/git__ssh_key__generate_dialog__rsa"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/git_ssh_keys__type_rsa"
+            android:textColor="@color/primary_text" />
+
+        <RadioButton
+            android:id="@+id/git__ssh_key__generate_dialog__ecdsa"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/git_ssh_keys__type_ecdsa"
+            android:textColor="@color/primary_text" />
+
+    </RadioGroup>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/git_ssh_keys__type_note"
+        android:textColor="@color/secondary_text"
+        android:textSize="12sp" />
+
+</LinearLayout>

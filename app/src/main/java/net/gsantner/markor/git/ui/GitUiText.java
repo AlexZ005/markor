@@ -14,7 +14,11 @@ import android.widget.EditText;
 import net.gsantner.markor.R;
 import net.gsantner.markor.git.GitCredentialStore;
 import net.gsantner.markor.git.GitResult;
+import net.gsantner.markor.git.ssh.GitSshKeyException;
 
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 /**
@@ -69,6 +73,30 @@ public final class GitUiText {
         }
     }
 
+    /** @return the sentence explaining why an SSH key operation was refused */
+    public static String messageFor(final Context context, final GitSshKeyException e) {
+        if (e == null) {
+            return context.getString(R.string.git_ssh_keys__error_generic);
+        }
+        switch (e.getReason()) {
+            case UNREADABLE_KEY:
+                return context.getString(R.string.git_ssh_keys__error_unreadable);
+            case PASSPHRASE_REQUIRED:
+            case BAD_PASSPHRASE:
+                return context.getString(R.string.git_ssh_keys__error_passphrase);
+            case CRYPTO_UNAVAILABLE:
+                return context.getString(R.string.git_ssh_keys__error_crypto);
+            case CRYPTO_FAILED:
+                return context.getString(R.string.git_ssh_keys__error_crypto_failed);
+            case INVALID_REQUEST:
+                return context.getString(R.string.git_ssh_keys__name_required);
+            default:
+                // NOT_FOUND, IO and GENERATE_FAILED are not the user's doing and have nothing more
+                // specific to say; the developer detail stays in the exception, out of the UI.
+                return context.getString(R.string.git_ssh_keys__error_generic);
+        }
+    }
+
     /**
      * Copies the field's content into a fresh array. The caller must {@link #wipe(char[])} it; the
      * token deliberately never becomes a {@code String}, which would linger in the string pool.
@@ -91,6 +119,34 @@ public final class GitUiText {
         if (secret != null) {
             Arrays.fill(secret, '\0');
         }
+    }
+
+    /** Overwrites the array with zeroes. Null-safe. */
+    public static void wipe(final byte[] secret) {
+        if (secret != null) {
+            Arrays.fill(secret, (byte) 0);
+        }
+    }
+
+    /**
+     * Encodes a secret as UTF-8 without letting it become a {@code String}: JSch takes a passphrase
+     * as {@code byte[]}, and the intermediate buffer is wiped here.
+     *
+     * @param secret the caller keeps ownership and wipes it
+     * @return the UTF-8 bytes, which the caller wipes as well; an empty array for empty input
+     */
+    public static byte[] utf8Bytes(final char[] secret) {
+        if (secret == null || secret.length == 0) {
+            return new byte[0];
+        }
+        final CharBuffer chars = CharBuffer.wrap(secret);
+        final ByteBuffer encoded = Charset.forName("UTF-8").encode(chars);
+        final byte[] out = new byte[encoded.remaining()];
+        encoded.get(out);
+        if (encoded.hasArray()) {
+            Arrays.fill(encoded.array(), (byte) 0);
+        }
+        return out;
     }
 
     /**

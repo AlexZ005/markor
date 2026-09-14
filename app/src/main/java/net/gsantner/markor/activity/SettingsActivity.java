@@ -32,6 +32,9 @@ import com.rarepebble.colorpicker.ColorPreference;
 import net.gsantner.markor.R;
 import net.gsantner.markor.frontend.MarkorDialogFactory;
 import net.gsantner.markor.frontend.filebrowser.MarkorFileBrowserFactory;
+import net.gsantner.markor.git.ssh.GitSshKey;
+import net.gsantner.markor.git.ssh.GitSshKeyStores;
+import net.gsantner.markor.git.ui.SshKeyManagerActivity;
 import net.gsantner.markor.model.AppSettings;
 import net.gsantner.markor.util.BackupUtils;
 import net.gsantner.markor.util.MarkorContextUtils;
@@ -215,6 +218,11 @@ public class SettingsActivity extends MarkorBaseActivity {
                     gitAuthorName.isEmpty() ? getString(R.string.git_settings__author_not_set) : gitAuthorName);
             updateSummary(R.string.pref_key__git_author_email,
                     gitAuthorEmail.isEmpty() ? getString(R.string.git_settings__author_not_set) : gitAuthorEmail);
+            final Context sshContext = getContext();
+            final GitSshKey defaultSshKey = sshContext == null ? null : GitSshKeyStores.get(sshContext).getDefault();
+            updateSummary(R.string.pref_key__git_ssh_key, defaultSshKey == null
+                    ? getString(R.string.git_settings__ssh_key_none)
+                    : defaultSshKey.getName() + "\n" + defaultSshKey.getFingerprintSha256());
 
             setPreferenceVisible(R.string.pref_key__is_multi_window_enabled, Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
 
@@ -409,6 +417,10 @@ public class SettingsActivity extends MarkorBaseActivity {
                 case R.string.pref_key__orgmode__reorder_actions:
                 case R.string.pref_key__todotxt__reorder_actions: {
                     startActivity(new Intent(getActivity(), ActionButtonSettingsActivity.class).putExtra(ActionButtonSettingsActivity.EXTRA_FORMAT_KEY, keyResId));
+                    break;
+                }
+                case R.string.pref_key__git_ssh_key: {
+                    SshKeyManagerActivity.launch(getActivity());
                     break;
                 }
                 case R.string.pref_key__set_encryption_password: {

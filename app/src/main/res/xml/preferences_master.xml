@@ -670,6 +670,11 @@
                 android:icon="@drawable/gs_email_sign_black_24dp"
                 android:key="@string/pref_key__git_author_email"
                 android:title="@string/git_settings__author_email" />
+
+            <Preference
+                android:icon="@drawable/ic_vpn_key_black_24dp"
+                android:key="@string/pref_key__git_ssh_key"
+                android:title="@string/git_settings__ssh_key" />
         </PreferenceCategory>
 
         <PreferenceCategory android:title="@string/git_settings__synchronisation">
