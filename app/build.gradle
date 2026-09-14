@@ -75,6 +75,9 @@ android {
     packagingOptions {
         resources {
             excludes += ['META-INF/LICENSE-LGPL-2.1.txt', 'META-INF/LICENSE-LGPL-3.txt', 'META-INF/LICENSE-W3C-TEST']
+            // Git tab / SSH: org.eclipse.jgit and org.eclipse.jgit.ssh.jsch each ship an OSGi bundle
+            // localization file of the same name; neither is read at runtime (doc/adr/0002-ssh-on-android.md).
+            excludes += ['plugin.properties', 'about.html']
         }
     }
 
@@ -90,6 +93,15 @@ android {
         disable 'MissingTranslation', 'InvalidPackage', 'ObsoleteLintCustomCheck', 'DefaultLocale', 'UnusedAttribute', 'VectorRaster', 'InflateParams', 'IconLocation', 'UnusedResources', 'TypographyEllipsis'
     }
 
+}
+
+// Git tab, SSH transport: replace the abandoned com.jcraft JSch 0.1.55 that org.eclipse.jgit.ssh.jsch
+// depends on with the maintained fork (rsa-sha2-*, ed25519, modern kex). Same package names, drop-in.
+// MGit does the same. See doc/adr/0002-ssh-on-android.md.
+configurations.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute module('com.jcraft:jsch') using module('com.github.mwiede:jsch:2.28.7') because 'com.jcraft:jsch 0.1.55 lacks rsa-sha2-256/512 and ed25519'
+    }
 }
 
 dependencies {
@@ -163,6 +175,12 @@ dependencies {
     implementation 'org.eclipse.jgit:org.eclipse.jgit:5.13.5.202508271544-r'
     // JGit 5.13 logs through slf4j 1.7; a no-op binding keeps it quiet (MIT)
     implementation 'org.slf4j:slf4j-nop:1.7.36'
+
+    // Git tab, SSH transport (doc/adr/0002-ssh-on-android.md). JGit's JSch-based SSH session factory
+    // (EDL 1.0 / BSD-3-Clause). It declares com.jcraft:jsch 0.1.55, which was last released in 2018 and
+    // has neither rsa-sha2-256/512 (GitHub rejects ssh-rsa SHA-1 signatures since 2022) nor ed25519, so
+    // it is substituted below by the maintained fork com.github.mwiede:jsch (BSD-3-Clause).
+    implementation 'org.eclipse.jgit:org.eclipse.jgit.ssh.jsch:5.13.5.202508271544-r'
 
     // Processors
     def anpros = []
