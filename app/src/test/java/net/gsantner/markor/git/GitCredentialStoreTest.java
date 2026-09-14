@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.Test;
 
-/** The in-memory path (API below 23) and the key derivation; the Keystore path is verified on a device. */
+/** The in-memory fallback and the key derivation; the Keystore path is verified on a device. */
 public class GitCredentialStoreTest {
 
     @Test
@@ -74,8 +74,9 @@ public class GitCredentialStoreTest {
     }
 
     @Test
-    public void belowApi23FallsBackToMemoryWithoutTouchingAndroid() {
-        // android.jar stubs report Build.VERSION.SDK_INT == 0, i.e. "below M": the Keystore backend is never constructed.
+    public void withoutAContextItFallsBackToMemoryWithoutTouchingAndroid() {
+        // No context means no Keystore, which is also what an odd ROM that refuses it ends up with.
+        // (Before this fork raised minSdk to 26 the same branch covered devices below API 23.)
         final GitCredentialStore store = GitCredentialStore.get(null);
         assertThat(store.isPersistent()).isFalse();
         assertThat(GitCredentialStore.get(null)).isSameAs(store);

@@ -43,6 +43,7 @@ Markor is openly developed free software that accepts community contributions.
 <br/>🌎 Language selection -- use other language than on the system
 <br/>
 <br/>🔃 Markor is an offline app. It works with sync apps, but they have to do syncing respectively.
+<br/>🌿 Git tab (**fork feature**, not in upstream Markor): pick a folder that is a git repository, review and commit your changes, browse the history with diffs, and pull from and push to an HTTPS remote with a personal access token. Do not let a file-sync app carry the `.git` folder as well -- pick one of the two.
 <br/>🔒 Can encrypt your textfiles with AES256. You need to set a password at the settings and use Android device with version Marshmallow or newer. You can use [jpencconverter](https://gitlab.com/opensource21/jpencconverter) to encrypt/decrypt on desktop. Be aware that only the text is encrypted not pictures or attachments.
 
 ## New features in the latest update - Markor v2.11 - AsciiDoc, CSV and Org-Mode, Todo.txt advanced search, Line numbers

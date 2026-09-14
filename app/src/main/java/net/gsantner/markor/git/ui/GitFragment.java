@@ -7,6 +7,7 @@
 #########################################################*/
 package net.gsantner.markor.git.ui;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -640,6 +641,8 @@ public class GitFragment extends MarkorBaseFragment {
     }
 
     /** Throws away everything that belongs to one repository, for a switch or for "no repository". */
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void forgetRepositoryData() {
         resetHistory();
         _status.clear();
@@ -652,6 +655,8 @@ public class GitFragment extends MarkorBaseFragment {
         _loadError = null;
     }
 
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void resetHistory() {
         _historyGeneration++;
         _pager.reset();
@@ -673,6 +678,8 @@ public class GitFragment extends MarkorBaseFragment {
         }
     }
 
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void applySnapshot(final Snapshot snapshot) {
         if (!snapshot.info.isOk()) {
             _info = null;
@@ -751,6 +758,8 @@ public class GitFragment extends MarkorBaseFragment {
         }
     }
 
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void loadMoreHistory() {
         final File root = _repoRoot;
         if (root == null || !_pager.beginLoad()) {

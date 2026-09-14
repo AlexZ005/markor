@@ -7,6 +7,7 @@
 #########################################################*/
 package net.gsantner.markor.git.ui;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -220,6 +221,8 @@ public class CommitDetailActivity extends MarkorBaseActivity {
         message.setText(body.isEmpty() ? _commit.getSubject() : _commit.getSubject() + "\n\n" + body);
     }
 
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void load() {
         final File repoRoot = _repoRoot;
         final String sha = _sha;
@@ -260,7 +263,7 @@ public class CommitDetailActivity extends MarkorBaseActivity {
                     _files = detail.diff.getValue().getFiles();
                     _adapter.notifyDataSetChanged();
                     ((TextView) findViewById(R.id.git_commit_detail__files_header))
-                            .setText(getString(R.string.git_changed_files) + " (" + _files.size() + ")");
+                            .setText(getString(R.string.git_changed_files_count, _files.size()));
                     invalidateOptionsMenu();
                 });
     }
@@ -476,8 +479,8 @@ public class CommitDetailActivity extends MarkorBaseActivity {
                 _deleted.setText("");
             } else {
                 _added.setTextColor(ContextCompat.getColor(context, R.color.git_diff_add_fg));
-                _added.setText("+" + file.getLinesAdded());
-                _deleted.setText("-" + file.getLinesDeleted());
+                _added.setText(context.getString(R.string.git_diff_lines_added, file.getLinesAdded()));
+                _deleted.setText(context.getString(R.string.git_diff_lines_deleted, file.getLinesDeleted()));
             }
         }
     }

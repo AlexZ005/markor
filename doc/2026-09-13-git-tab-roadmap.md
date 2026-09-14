@@ -123,79 +123,79 @@ Model column: **Fable** = Claude Fable 5.1, **Opus** = Claude Opus 5. The ration
 ### Phase 0 — Groundwork (blocking)
 
 | ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
+|----|------|-------|------|-----------|--------|
 | 0.1 | Create branch `feature/git-tab` from `v2.16.1` on the fork. Decide now whether to rebase onto upstream `master` before starting (master has moved: deep links, document-creation fixes, snippets). Recommended: start on the tag as requested, rebase once before Phase 3. | Opus | S | Branch pushed to the fork |
 | 0.2 | Install the toolchain: JDK 17 or 21 (CI uses 21), Android command-line tools, platform 35, build-tools 35.0.0, an API 26+ emulator image and an API 21 image. Run `make test` and `./gradlew assembleFlavorAtestDebug` on the untouched tag and record timings. | Opus | S | Clean build and green unit tests on this machine |
 | 0.3 | Read `doc/maintain.md` and the PR template; note code style (AOSP, auto-reformat) so generated code matches. | Opus | S | One paragraph of conventions added to this doc |
 
 ### Phase 1 — Feasibility spike: JGit on Android (highest risk, gate for everything else)
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 1.1 | Add `org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r`, a slf4j binding (`slf4j-nop` or `slf4j-android`), `coreLibraryDesugaringEnabled true` and `coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'`. Confirm D8 accepts Java 17 class files from JGit 7 under AGP 8.13; if not, step down to `6.10.1` then `5.13.5`. | **Fable** | M | Debug APK builds |
-| 1.2 | Throwaway debug-only screen (flavorAtest) that runs: init, add, commit, log, status, diff, clone over HTTPS, fetch, pull, push with a token against a scratch GitHub repo. Run on API 26+ and on API 21 (desugared path). Capture every `UnsupportedOperationException` or `NoClassDefFoundError`. | **Fable** | M | Table of operations × API level with pass/fail |
-| 1.3 | Release build with R8: add keep rules for JGit's `ServiceLoader`-registered transports, `JGitText` resource bundles and slf4j. Verify the release APK can still clone over HTTPS. Measure APK and method-count delta (multidex is already on). | **Fable** | M | Release APK works; size delta recorded |
-| 1.4 | Decision record `doc/adr/0001-jgit-on-android.md`: chosen JGit version, minSdk (keep 18 or raise to 26), APK cost, known gaps. If the desugared path fails on API 21, raise minSdk to 26 in the fork and say so. | **Fable** | S | ADR committed |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 1.1 | Add `org.eclipse.jgit:org.eclipse.jgit:7.8.0.202609011348-r`, a slf4j binding (`slf4j-nop` or `slf4j-android`), `coreLibraryDesugaringEnabled true` and `coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'`. Confirm D8 accepts Java 17 class files from JGit 7 under AGP 8.13; if not, step down to `6.10.1` then `5.13.5`. | **Fable** | M | Debug APK builds | ✅ shipped |
+| 1.2 | Throwaway debug-only screen (flavorAtest) that runs: init, add, commit, log, status, diff, clone over HTTPS, fetch, pull, push with a token against a scratch GitHub repo. Run on API 26+ and on API 21 (desugared path). Capture every `UnsupportedOperationException` or `NoClassDefFoundError`. | **Fable** | M | Table of operations × API level with pass/fail | ✅ shipped |
+| 1.3 | Release build with R8: add keep rules for JGit's `ServiceLoader`-registered transports, `JGitText` resource bundles and slf4j. Verify the release APK can still clone over HTTPS. Measure APK and method-count delta (multidex is already on). | **Fable** | M | Release APK works; size delta recorded | ✅ shipped |
+| 1.4 | Decision record `doc/adr/0001-jgit-on-android.md`: chosen JGit version, minSdk (keep 18 or raise to 26), APK cost, known gaps. If the desugared path fails on API 21, raise minSdk to 26 in the fork and say so. | **Fable** | S | ADR committed | ✅ shipped |
 
 ### Phase 2 — Core git service layer (no UI)
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 2.1 | Design the public API of `GitService`, its result types, and the `GitTaskRunner` threading/cancellation contract. Write it as interfaces plus Javadoc before any implementation. | **Fable** | S | Reviewed API sketch |
-| 2.2 | Implement `GitService` for local operations: open/detect repo (walk up to find `.git`), `status`, `log(limit, skip)`, `diff(path?)`, `diffForCommit(sha)`, `commit(message, paths)`, `init`. | Opus | M | JVM unit tests green |
-| 2.3 | Implement remote operations: `clone`, `fetch`, `pull(ffOnly / rebase / merge)`, `push`, with `ProgressMonitor` wired to progress callbacks and cancellation. Map JGit exceptions to the typed results. | **Fable** | M | Unit tests with a `file://` bare remote cover fast-forward, diverged (rebase and merge), conflict, and non-fast-forward push |
-| 2.4 | `GitRepoRegistry`: JSON list of repos (path, display name, remote URL, default branch, pull strategy), active repo, persisted via `AppSettings`. Migration-safe (unknown fields ignored). | Opus | S | Unit tests |
-| 2.5 | `GitCredentialStore` on top of `PasswordStore` → JGit `UsernamePasswordCredentialsProvider`. In-memory fallback below API 23. Never log the token. | **Fable** | S | Unit test for API<23 fallback path; manual test on device |
-| 2.6 | `GitTaskRunner`: per-repo `SingleThreadExecutor`, main-thread delivery, cancel token, "busy" state exposed for the UI. | Opus | S | Unit tests with a fake clock/executor |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 2.1 | Design the public API of `GitService`, its result types, and the `GitTaskRunner` threading/cancellation contract. Write it as interfaces plus Javadoc before any implementation. | **Fable** | S | Reviewed API sketch | ✅ shipped |
+| 2.2 | Implement `GitService` for local operations: open/detect repo (walk up to find `.git`), `status`, `log(limit, skip)`, `diff(path?)`, `diffForCommit(sha)`, `commit(message, paths)`, `init`. | Opus | M | JVM unit tests green | ✅ shipped |
+| 2.3 | Implement remote operations: `clone`, `fetch`, `pull(ffOnly / rebase / merge)`, `push`, with `ProgressMonitor` wired to progress callbacks and cancellation. Map JGit exceptions to the typed results. | **Fable** | M | Unit tests with a `file://` bare remote cover fast-forward, diverged (rebase and merge), conflict, and non-fast-forward push | ✅ shipped |
+| 2.4 | `GitRepoRegistry`: JSON list of repos (path, display name, remote URL, default branch, pull strategy), active repo, persisted via `AppSettings`. Migration-safe (unknown fields ignored). | Opus | S | Unit tests | ✅ shipped |
+| 2.5 | `GitCredentialStore` on top of `PasswordStore` → JGit `UsernamePasswordCredentialsProvider`. In-memory fallback below API 23. Never log the token. | **Fable** | S | Unit test for API<23 fallback path; manual test on device | ✅ shipped — the API&nbsp;<&nbsp;23 in-memory fallback is unreachable at minSdk 26 |
+| 2.6 | `GitTaskRunner`: per-repo `SingleThreadExecutor`, main-thread delivery, cancel token, "busy" state exposed for the UI. | Opus | S | Unit tests with a fake clock/executor | ✅ shipped |
 
 ### Phase 3 — Replace "More" with the Git tab
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 3.1 | Menu and strings: `nav_git`, icon, `R.string.git`; extend `pref_arrdisp__bottomnav` with "Git" and `getAppStartupTab()` case 3. | Opus | S | Tab appears, start-tab setting lists it |
-| 3.2 | Wire `GitFragment` into `MainActivity`: `tabIdToPos`, `getPosTitle`, `getPosFragment`, `createFragment`, save/restore instance state, `onViewPagerPageSelected` (FAB behavior), `onBackPressed` delegation. The placeholder/realized adapter (`_realized[]`, `getItemId` parity trick) is subtle; verify rotation and process-death restore. | **Fable** | M | Rotation, background-kill and start-tab tests pass manually |
-| 3.3 | Move About content: new Settings entry "About Markor" that opens `MoreInfoFragment`; delete `MoreFragment` and its layout; make the toolbar Settings action visible by default so Settings stays one tap away (it was reachable from More before). | Opus | S | Every former More item is reachable |
-| 3.4 | `GitFragment` skeleton with the three states (no repo / not a repo / repo open), header (repo, branch, ahead/behind, last fetch), action row, and a `SwipeRefreshLayout` that re-runs status. Reuse the layout pattern of `opoc_filesystem_fragment.xml`. | Opus | M | Empty and populated states render on both themes |
-| 3.5 | Working-folder selection: *Select working folder* via `MarkorFileBrowserFactory.showFolderDialog`; reject SAF-mounted folders with a clear message; suggest the Notebook folder when it has `.git`; repository switcher via `GsSearchOrCustomTextDialog` with *Add folder…*. | Opus | M | Can add, switch and remove repos |
-| 3.6 | Changes list: `RecyclerView` adapter for status entries (M/A/D/?/conflict), tap → diff viewer (Phase 6 stub shows raw unified diff), long-press → open in `DocumentActivity`. | Opus | M | Matches `git status` on the same repo |
-| 3.7 | History list: paged commit rows (short hash, subject, author, relative time), load-more on scroll, tap → commit detail (Phase 6). | Opus | M | Matches `git log` |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 3.1 | Menu and strings: `nav_git`, icon, `R.string.git`; extend `pref_arrdisp__bottomnav` with "Git" and `getAppStartupTab()` case 3. | Opus | S | Tab appears, start-tab setting lists it | ✅ shipped |
+| 3.2 | Wire `GitFragment` into `MainActivity`: `tabIdToPos`, `getPosTitle`, `getPosFragment`, `createFragment`, save/restore instance state, `onViewPagerPageSelected` (FAB behavior), `onBackPressed` delegation. The placeholder/realized adapter (`_realized[]`, `getItemId` parity trick) is subtle; verify rotation and process-death restore. | **Fable** | M | Rotation, background-kill and start-tab tests pass manually | ✅ shipped |
+| 3.3 | Move About content: new Settings entry "About Markor" that opens `MoreInfoFragment`; delete `MoreFragment` and its layout; make the toolbar Settings action visible by default so Settings stays one tap away (it was reachable from More before). | Opus | S | Every former More item is reachable | ✅ shipped |
+| 3.4 | `GitFragment` skeleton with the three states (no repo / not a repo / repo open), header (repo, branch, ahead/behind, last fetch), action row, and a `SwipeRefreshLayout` that re-runs status. Reuse the layout pattern of `opoc_filesystem_fragment.xml`. | Opus | M | Empty and populated states render on both themes | ✅ shipped |
+| 3.5 | Working-folder selection: *Select working folder* via `MarkorFileBrowserFactory.showFolderDialog`; reject SAF-mounted folders with a clear message; suggest the Notebook folder when it has `.git`; repository switcher via `GsSearchOrCustomTextDialog` with *Add folder…*. | Opus | M | Can add, switch and remove repos | ✅ shipped |
+| 3.6 | Changes list: `RecyclerView` adapter for status entries (M/A/D/?/conflict), tap → diff viewer (Phase 6 stub shows raw unified diff), long-press → open in `DocumentActivity`. | Opus | M | Matches `git status` on the same repo | ✅ shipped |
+| 3.7 | History list: paged commit rows (short hash, subject, author, relative time), load-more on scroll, tap → commit detail (Phase 6). | Opus | M | Matches `git log` | ✅ shipped |
 
 ### Phase 4 — Commit flow
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 4.1 | Commit dialog: message field, file checklist, *Commit* / *Commit and push*, validation (empty message, nothing selected). Author name/e-mail first-run prompt; persist in settings and write to repo config. | Opus | M | Commit appears in History with correct author |
-| 4.2 | Flush unsaved editors before status/commit: To-Do and QuickNote fragments in `MainActivity`, and any `DocumentActivity` the user may return from. Use the existing `Document` save path and global touch time. | **Fable** | S | Editing todo.txt then switching to Git shows it as modified without an explicit save |
-| 4.3 | Suggest a `.gitignore` entry for Markor's own `.app/` folder (snippets, etc.) when the repo has none. | Opus | S | Prompt shown once per repo |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 4.1 | Commit dialog: message field, file checklist, *Commit* / *Commit and push*, validation (empty message, nothing selected). Author name/e-mail first-run prompt; persist in settings and write to repo config. | Opus | M | Commit appears in History with correct author | ✅ shipped |
+| 4.2 | Flush unsaved editors before status/commit: To-Do and QuickNote fragments in `MainActivity`, and any `DocumentActivity` the user may return from. Use the existing `Document` save path and global touch time. | **Fable** | S | Editing todo.txt then switching to Git shows it as modified without an explicit save | ✅ shipped |
+| 4.3 | Suggest a `.gitignore` entry for Markor's own `.app/` folder (snippets, etc.) when the repo has none. | Opus | S | Prompt shown once per repo | ✅ shipped |
 
 ### Phase 5 — Remote sync: fetch, pull, push, credentials (HTTPS)
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 5.1 | Remote setup dialog: URL, username, token (hidden input), *Test connection* (ls-remote). Save token via `GitCredentialStore`. | Opus | M | Works against GitHub, GitLab and a Gitea/Forgejo instance |
-| 5.2 | Clone flow: URL + target folder (empty) + credentials, with progress and cancel; registers the repo on success. | Opus | M | Clone of a private repo succeeds |
-| 5.3 | Pull state machine: ff-only → diverged dialog (rebase / merge) → conflicts banner → per-file open in editor → *Mark resolved and commit* / *Abort*. Handle `rebase --continue` and `merge --abort` semantics correctly in JGit. | **Fable** | L | Scripted scenarios from 2.3 pass through the UI |
-| 5.4 | Push: progress, non-fast-forward → *Pull first*, auth failure → re-prompt, no upstream → set upstream automatically. | Opus | S | Push rejected/accepted paths verified |
-| 5.5 | Fetch on tab open (setting, default on when online) and ahead/behind computation for the header. | Opus | S | Header counts match `git status -sb` |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 5.1 | Remote setup dialog: URL, username, token (hidden input), *Test connection* (ls-remote). Save token via `GitCredentialStore`. | Opus | M | Works against GitHub, GitLab and a Gitea/Forgejo instance | ✅ shipped — verified against GitHub only |
+| 5.2 | Clone flow: URL + target folder (empty) + credentials, with progress and cancel; registers the repo on success. | Opus | M | Clone of a private repo succeeds | ✅ shipped |
+| 5.3 | Pull state machine: ff-only → diverged dialog (rebase / merge) → conflicts banner → per-file open in editor → *Mark resolved and commit* / *Abort*. Handle `rebase --continue` and `merge --abort` semantics correctly in JGit. | **Fable** | L | Scripted scenarios from 2.3 pass through the UI | ✅ shipped |
+| 5.4 | Push: progress, non-fast-forward → *Pull first*, auth failure → re-prompt, no upstream → set upstream automatically. | Opus | S | Push rejected/accepted paths verified | ✅ shipped |
+| 5.5 | Fetch on tab open (setting, default on when online) and ahead/behind computation for the header. | Opus | S | Header counts match `git status -sb` | ✅ shipped |
 
 ### Phase 6 — Diff viewer and commit detail
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 6.1 | Unified diff view: monospace, added/removed line coloring on both themes, hunk headers, horizontal scroll, share/copy. Rendering via `SpannableString` in a `TextView` (no WebView). | Opus | M | Readable diff for a 500-line markdown file |
-| 6.2 | Commit detail screen: full hash, author, date, message, list of changed files → per-file diff; *Open current version* → `DocumentActivity`. | Opus | M | Navigates from History to a file diff and back |
-| 6.3 | Optional: *Restore this version* (checkout a single file at a commit into the working tree, then it shows as modified). | Opus | S | Guarded by a confirmation dialog |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 6.1 | Unified diff view: monospace, added/removed line coloring on both themes, hunk headers, horizontal scroll, share/copy. Rendering via `SpannableString` in a `TextView` (no WebView). | Opus | M | Readable diff for a 500-line markdown file | ✅ shipped |
+| 6.2 | Commit detail screen: full hash, author, date, message, list of changed files → per-file diff; *Open current version* → `DocumentActivity`. | Opus | M | Navigates from History to a file diff and back | ✅ shipped |
+| 6.3 | Optional: *Restore this version* (checkout a single file at a commit into the working tree, then it shows as modified). | Opus | S | Guarded by a confirmation dialog | ➡️ moved to 8.5 |
 
 ### Phase 7 — Settings, hardening, release
 
-| ID | Task | Model | Size | Done when |
-|----|------|-------|------|-----------|
-| 7.1 | Settings "Git" category: author name/e-mail, default pull strategy, fetch on open, confirm before push, show untracked files. | Opus | S | Persisted and honored |
-| 7.2 | Edge cases: repo folder deleted or moved, detached HEAD, empty repo (no commits), very large history (paging), binary files in diff, repo on a path the app cannot write. | Opus | M | Each shows a message instead of crashing |
-| 7.3 | Warn about Syncthing/Nextcloud syncing `.git` (leads to corruption): one-time dialog when a repo is added, with a link to the existing Syncthing doc. | Opus | S | Dialog text reviewed |
-| 7.4 | Licenses, CONTRIBUTORS, CHANGELOG, README feature list; new strings only in `values/strings.xml` (the fork is not on Crowdin). | Opus | S | `make lint` clean |
-| 7.5 | Security review of the whole feature: token handling, logging, TLS (system CAs only), cleartext `http://` remotes (allow with warning or block), redirects, path traversal in clone target. Run `/security-review` and `/code-review` on the branch. | **Fable** | M | Findings fixed or explicitly accepted |
-| 7.6 | Manual test matrix on API 21 (if minSdk kept), 26 and 35 emulators; GitHub + GitLab + Gitea remotes; rotation, dark theme, RTL, large repo. Release APK via `make build FLAVOR=Default`. | Opus | M | Matrix filled in, release APK installed and exercised |
+| ID | Task | Model | Size | Done when | Status |
+|----|------|-------|------|-----------|--------|
+| 7.1 | Settings "Git" category: author name/e-mail, default pull strategy, fetch on open, confirm before push, show untracked files. | Opus | S | Persisted and honored | ✅ shipped |
+| 7.2 | Edge cases: repo folder deleted or moved, detached HEAD, empty repo (no commits), very large history (paging), binary files in diff, repo on a path the app cannot write. | Opus | M | Each shows a message instead of crashing | ✅ shipped |
+| 7.3 | Warn about Syncthing/Nextcloud syncing `.git` (leads to corruption): one-time dialog when a repo is added, with a link to the existing Syncthing doc. | Opus | S | Dialog text reviewed | ✅ shipped |
+| 7.4 | Licenses, CONTRIBUTORS, CHANGELOG, README feature list; new strings only in `values/strings.xml` (the fork is not on Crowdin). | Opus | S | `make lint` clean | ✅ shipped |
+| 7.5 | Security review of the whole feature: token handling, logging, TLS (system CAs only), cleartext `http://` remotes (allow with warning or block), redirects, path traversal in clone target. Run `/security-review` and `/code-review` on the branch. | **Fable** | M | Findings fixed or explicitly accepted | ⬜ open |
+| 7.6 | Manual test matrix on API 21 (if minSdk kept), 26 and 35 emulators; GitHub + GitLab + Gitea remotes; rotation, dark theme, RTL, large repo. Release APK via `make build FLAVOR=Default`. | Opus | M | Matrix filled in, release APK installed and exercised | ⬜ open |
 
 ### Phase 8 — Later (not part of the first release)
 
@@ -205,6 +205,21 @@ Model column: **Fable** = Claude Fable 5.1, **Opus** = Claude Opus 5. The ration
 | 8.2 | Per-file git actions in the editor menu: file history, diff against HEAD, status badge in the file browser. | Opus | M | Touches `DocumentActivity` and `GsFileBrowserListAdapter` |
 | 8.3 | Auto-commit on save and background sync with WorkManager (new dependency). | **Fable** | L | Conflicts with D5 unless carefully designed |
 | 8.4 | Branch management: create/switch/delete branches, checkout remote branches. | Opus | M | |
+| 8.5 | *Restore this version*: check a single file out at a commit into the working tree (was 6.3). | Opus | S | Needs `checkoutFileAtCommit(repoDir, path, sha)` in `GitService` first; the contract has no such operation and the diff/commit screens are otherwise read-only. |
+| 8.6 | Per-repository overrides for the Settings > Git defaults. `GitRepoConfig` already carries `pullStrategy` and `fetchOnOpen`; since 7.1 the tab reads the app-level settings instead, so those two fields are dormant. | Opus | S | A per-repository screen reachable from the tab's overflow |
+| 8.7 | A "hide untracked files" flag on `GitService.status`. The Git tab filters the list itself (7.1); the commit dialog reads status for itself and always sees them. | Opus | S | One flag, honoured by both callers |
+
+### What is left for the first release
+
+Phases 1-6 and 7.1-7.4 are merged into `feature/git-tab`. Still open before the fork release:
+
+- **7.5 — security review** of the whole feature (token handling, logging, TLS, cleartext `http://`
+  remotes, redirects, path traversal in the clone target). `GitRemoteUrlValidator` currently *blocks*
+  plain `http://` rather than warning about it; open question 4 below decides whether that stays.
+- **7.6 — manual test matrix** on API 26 and 35, against GitLab and a Gitea/Forgejo instance as well
+  as GitHub, plus rotation, dark theme, RTL and a large repository, from an installed release APK.
+  RTL could not be forced on the api26 image (the app-wide language setting changes the language but
+  not the layout direction), so it needs a device where it can be.
 
 ## 5. Which model for which task
 
