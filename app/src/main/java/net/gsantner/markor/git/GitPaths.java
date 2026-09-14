@@ -8,18 +8,20 @@
 package net.gsantner.markor.git;
 
 import java.io.File;
+import java.io.IOException;
 
 /**
- * Path normalization shared by the git core classes.
+ * Path normalization and containment checks shared by the git classes.
  * <p>
  * Repositories are identified by their working folder path. The same folder must map to the same
  * key no matter how it was spelled (trailing separator, relative path), so that the registry does
  * not hold duplicates and {@link GitTaskRunner} serializes operations on one repository.
  * <p>
- * This deliberately does not use {@link File#getCanonicalPath()}: it touches the file system, can
- * throw and resolves symlinks, which would make two legitimately different user selections collapse.
+ * {@link #normalize(String)} deliberately does not use {@link File#getCanonicalPath()}: it touches the
+ * file system, can throw and resolves symlinks, which would make two legitimately different user
+ * selections collapse. {@link #resolveInside(File, String)} must resolve {@code ..}, so it does.
  */
-final class GitPaths {
+public final class GitPaths {
     private GitPaths() {
     }
 
@@ -44,5 +46,42 @@ final class GitPaths {
             p = p.substring(0, p.length() - 1);
         }
         return p;
+    }
+
+    /**
+     * Resolves a repository-relative path against the working folder, refusing anything that would
+     * leave it.
+     * <p>
+     * Paths handed to the UI come out of the repository - {@code status}, a tree walk, a diff - and a
+     * repository can be crafted: nothing in the object format stops a tree entry from being named
+     * {@code ..}, and the repositories this app opens sit in the notebook folder on shared storage
+     * where any app can write. Every place that turns such a path into a {@link File} it then opens,
+     * writes or deletes goes through here, so a hostile repository cannot reach
+     * {@code /data/data/net.gsantner.markor} or the rest of the notebook folder.
+     * <p>
+     * Both sides are canonicalized, so {@code /sdcard} being a symlink to {@code /storage/emulated/0}
+     * does not by itself fail the check.
+     *
+     * @param root the repository working folder
+     * @param path a repository-relative path, as git spells it (forward slashes)
+     * @return the file inside {@code root}, or {@code null} when the path is empty, absolute, or
+     * resolves to {@code root} itself or anywhere outside it
+     */
+    public static File resolveInside(final File root, final String path) {
+        if (root == null || path == null) {
+            return null;
+        }
+        final String trimmed = path.trim();
+        if (trimmed.isEmpty() || new File(trimmed).isAbsolute()) {
+            return null;
+        }
+        final File candidate = new File(root, trimmed);
+        try {
+            final String rootPath = root.getCanonicalPath();
+            final String prefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
+            return candidate.getCanonicalPath().startsWith(prefix) ? candidate : null;
+        } catch (final IOException | SecurityException e) {
+            return null;
+        }
     }
 }
