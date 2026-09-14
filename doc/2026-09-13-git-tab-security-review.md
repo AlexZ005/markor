@@ -32,6 +32,14 @@ Three properties of this feature decide how the findings below are rated.
 | 6 | **Medium** | `remote.<name>.pushurl` decides where a push goes, but the header and the push-confirmation dialog show `remote.<name>.url` | `JGitRemoteOps.java:300`, `JGitRepos.java:132`, `ui/GitFragment.java:1428` | **Fixed** — `e84c4f8f` |
 | 7 | Low | `http.cookieFile` + `http.saveCookies` make the app write a file at a path chosen in `.git/config` | `JGitRemoteOps.java` (absent) | **Fixed** — `12e26baf` |
 | 8 | Low | A removed repository's worker thread and its running operation were never stopped | `ui/GitFragment.java:900` | **Fixed** — `e1721430` |
+| 9 | **High** | The finding-4 guard read only the bare `http.sslVerify`; the per-URL `[http "<url>"]` subsection overrides it | `JGitRemoteOps.java` | **Fixed** — `80e579ea` |
+| 10 | **Medium** | A path finding 5 rejected fell into the `git rm` branch, so the containment check itself deleted files | `JGitLocalOps.java:402`, `JGitRemoteOps.java:517` | **Fixed** — `80e579ea` |
+| 11 | **Medium** | `resolveInside` trimmed the path, so `"draft .md"` resolved to `"draft.md"` | `GitPaths.java:74` | **Fixed** — `80e579ea` |
+| 12 | Low | Commits ran `.git/hooks`, which sits beside the `.git/config` the threat model distrusts | `JGitLocalOps.java:427`, `JGitRemoteOps.java` | **Fixed** — `80e579ea` |
+| 13 | Low | Wrong refusal message for SSH remotes and for `https://:token@host/x` | `GitRemoteUrlPolicy.java` | **Fixed** — `80e579ea` |
+
+Findings 9–13 are against the fixes for findings 1–8, from the `/code-review high` pass. Three of
+them are defects those fixes introduced; 9 and 10 were the important ones and are written up below.
 
 Verified as sound, no change needed: see [Checked and left alone](#checked-and-left-alone).
 
@@ -198,6 +206,47 @@ a process-wide singleton.
 
 **Fix.** `removeRepository` calls `shutdownRepo`, which cancels and releases the lane.
 
+### 9 — High — the TLS guard was bypassable by a per-URL config subsection
+
+`JGitRemoteOps.java`, introduced by the fix for finding 4.
+
+The guard read `config.getBoolean("http", "sslVerify", true)` — the bare key only. Disassembling
+`HttpConfig.init(Config, URIish)` from the shipped jar shows it reads the bare value first and then
+**overwrites** it from the `[http "<url>"]` subsection whose URL matches the remote:
+`getSubsections("http")` → `findMatch(Set, URIish)` → the four-argument
+`getBoolean(section, subsection, name, default)`. So
+
+```
+[http "https://github.com/"]
+    sslVerify = false
+```
+
+disabled certificate verification for exactly the remote being contacted while the guard saw nothing
+— the attack the guard was written to stop, with one extra line in the same file.
+
+**Fix.** `httpSectionRefusal` walks the bare key *and* every `http` subsection, for `sslVerify` and
+for the cookie keys of finding 7 alike. Every subsection is inspected rather than only the matching
+one: the match is JGit's own longest-prefix rule over a URL the app has just decided not to trust,
+and refusing one key too many costs nothing, since the app writes no `http.*` key at all.
+
+### 10 — Medium — the containment check routed rejected paths into `git rm`
+
+`JGitLocalOps.java:402`, `JGitRemoteOps.java:517`, introduced by the fix for finding 5.
+
+Both staging sites read `(file != null && file.exists() ? existing : removed).add(path)`, so a path
+`resolveInside` **rejected** landed in `removed` — the branch that calls `git rm`, which is not
+`setCached(true)` and therefore deletes the working-tree file. The check meant to make traversal
+harmless made it destructive instead, and it also caught a legitimate case: a tracked symlink
+pointing outside the working folder canonicalizes outside, so the next commit would have deleted it.
+
+**Fix.** A rejected path is skipped entirely at both sites, and `resolveInside`'s javadoc now says
+that a `null` is not a licence to fall through to a destructive branch.
+
+Finding 11 compounded this one: because `resolveInside` trimmed the path, a file literally named
+`draft .md` resolved to `draft.md`; that file usually does not exist, so the entry went to `removed`
+and `git rm "draft .md"` deleted the real one. The path is now used verbatim — only empty and
+absolute are refused.
+
 ---
 
 ## How much finding 2 was worth
@@ -275,6 +324,13 @@ upstream behaviour — outside this lane's scope and not a change to make withou
 Finding 3's fix closes the git-specific hole regardless: the token cannot reach a cleartext
 connection even while the manifest permits one. **Deferred — worth a Phase 8 item.**
 
+**No migration for a repository already configured with `https://<token>@host/…`.** That spelling was
+valid before finding 1 was fixed, so an existing repository can have one. Every fetch, pull and push
+on it is now refused, and the refusal names where to fix it (Git tab ▸ ⋮ ▸ *Remote…*) — but nothing
+rewrites the URL or moves the token into the Keystore for the user, and the token is already sitting
+in `.git/config` in cleartext. A one-time detect-and-offer-to-fix flow is a feature rather than a
+review fix. **Deferred — worth a Phase 8 item.**
+
 **Credentials are keyed by host, not by host + port.** A token stored for `github.com` would be sent
 to `https://github.com:8443/…`. Both are https and both are the same host, so this is a
 defense-in-depth gap rather than a leak; git itself scopes credentials the same way by default.
@@ -311,7 +367,9 @@ grep -rn 'Log\.|printStackTrace|Toast|getMessage()' app/src/main/java/net/gsantn
 grep -rn 'new File(' app/src/main/java/net/gsantner/markor/git/
 ```
 
-Reviews run over `git diff origin/master...HEAD`: `/security-review` and `/code-review high`.
+Reviews run over `git diff origin/master...HEAD`: `/security-review` and `/code-review high`. The
+security pass independently confirmed finding 4 and contributed findings 6 and 7; the code-review
+pass, run over the first three fix commits, contributed findings 9–13.
 
 ## Tests added
 
@@ -321,6 +379,11 @@ Reviews run over `git diff origin/master...HEAD`: `/security-review` and `/code-
 * `app/src/test/java/net/gsantner/markor/git/GitPathsTest.java` — traversal shapes through
   `resolveInside`, plus `GitConflictMarkers.scan` end to end against a file outside the working
   folder.
+* `app/src/test/java/net/gsantner/markor/git/JGitRemoteConfigSecurityTest.java` — `.git/config` as
+  untrusted input against a real repository: a remote rewritten to `http://` or `ftp://`, a token in
+  the remote URL, `http.sslVerify = false` bare **and** in a per-URL subsection, `http.cookieFile`
+  and `http.saveCookies`, and the three `pushurl` cases. Nothing in it reaches the network — each
+  case must be refused before a connection is attempted, so the refusal is asserted on the message.
 * `GitRemoteUrlValidatorTest.acceptsUsernameInUrlWithoutPassword` asserted finding 1's behaviour and
   is replaced by `refusesAnyUserinfoInTheUrl`; `JGitServiceContractTest` follows `hasPassword` →
   `hasUserinfo`.
