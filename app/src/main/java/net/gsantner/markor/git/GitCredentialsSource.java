@@ -8,7 +8,9 @@
 package net.gsantner.markor.git;
 
 /**
- * Supplies HTTPS credentials (username and personal access token) on demand, keyed by remote host.
+ * Supplies the credentials a remote operation may need: the HTTPS username and personal access token
+ * on demand, keyed by remote host, and — since roadmap task 8.1c — the SSH identity, through
+ * {@link #ssh()}.
  * <p>
  * The service asks only when the remote demands authentication and only for the host of the URL it
  * is talking to, copies the secret into JGit's credential item and zeroes its own copy immediately
@@ -33,6 +35,19 @@ public interface GitCredentialsSource {
      * @return a fresh copy of the token or password; the caller zeroes it after use. {@code null} when none is known.
      */
     char[] getSecret(String host);
+
+    /**
+     * The SSH side of the same operation: which key to authenticate with and whether a new host may
+     * be trusted. Kept behind a method with a default rather than in the operation's argument list,
+     * because every implementation that predates SSH is right to answer "none" — and because the
+     * two are never both used. {@link GitRemoteUrlPolicy} decides from the URL which transport an
+     * operation runs on; the token goes only to https and the key only to SSH.
+     *
+     * @return never {@code null}; {@link GitSshAuthSource#NONE} when this source knows no keys
+     */
+    default GitSshAuthSource ssh() {
+        return GitSshAuthSource.NONE;
+    }
 
     /** Knows no credentials: remote operations succeed only against public/anonymous remotes. */
     GitCredentialsSource NONE = new GitCredentialsSource() {

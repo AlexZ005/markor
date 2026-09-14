@@ -16,6 +16,8 @@ import org.eclipse.jgit.api.errors.TransportException;
 import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.transport.URIish;
+import com.jcraft.jsch.JSchHostKeyExceptions;
+
 import org.junit.Test;
 
 import java.io.File;
@@ -85,12 +87,34 @@ public class JGitErrorsTest {
         assertThat(JGitErrors.map(new TransportException("git@h:x.git: Permission denied (publickey)."), GitProgress.NONE, null).getKind())
                 .isEqualTo(GitResult.Kind.AUTH_FAILED);
         // A host key problem is not an authentication problem: it must not be answered with
-        // "check your key". Until GitResult grows a kind of its own it stays FAILED, and the UI asks
-        // GitSshSessionFactory.isHostKeyMismatch / isUnknownHostKey.
+        // "check your key". Recognised by the exception type rather than by the prose, see below.
         assertThat(JGitErrors.map(new TransportException("git@h:x.git: HostKey has been changed: h"), GitProgress.NONE, null).getKind())
                 .isEqualTo(GitResult.Kind.FAILED);
         assertThat(JGitErrors.map(new TransportException("git@h:x.git: reject HostKey: h"), GitProgress.NONE, null).getKind())
                 .isEqualTo(GitResult.Kind.FAILED);
+    }
+
+    /**
+     * Roadmap task 8.1c. JSch raises two distinct exceptions for the two host-key outcomes and JGit
+     * wraps both in a TransportException, where the prose is all that is left — and the prose of an
+     * unknown host key contains the word "key", close enough to the auth rules above to be read as an
+     * authentication failure. The exception types are checked first, and before everything else.
+     */
+    @Test
+    public void hostKeyProblemsAreNamedAsThemselves() {
+        final Exception changed = new TransportException("git@github.com:me/n.git",
+                JSchHostKeyExceptions.changed("HostKey has been changed: github.com"));
+        final GitResult<?> mismatch = JGitErrors.map(changed, GitProgress.NONE, null);
+        assertThat(mismatch.getKind()).isEqualTo(GitResult.Kind.HOST_KEY_MISMATCH);
+        assertThat(mismatch.getMessage()).contains("host key changed").contains("Settings");
+
+        final Exception unknown = new TransportException("git@github.com:me/n.git",
+                JSchHostKeyExceptions.unknown("UnknownHostKey: github.com. RSA key fingerprint is SHA256:abc"));
+        final GitResult<?> declined = JGitErrors.map(unknown, GitProgress.NONE, null);
+        assertThat(declined.getKind()).isEqualTo(GitResult.Kind.FAILED);
+        assertThat(declined.getMessage()).contains("fingerprint");
+        // Not AUTH_FAILED: the key was never offered, so "check your key" would be wrong advice.
+        assertThat(declined.getKind()).isNotEqualTo(GitResult.Kind.AUTH_FAILED);
     }
 
     @Test

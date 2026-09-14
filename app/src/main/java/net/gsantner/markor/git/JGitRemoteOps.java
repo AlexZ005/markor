@@ -70,6 +70,10 @@ final class JGitRemoteOps {
     // ---------------------------------------------------------------- clone
 
     GitResult<GitRepoInfo> clone(final String url, final File targetDir, final GitCredentialsSource credentials, final GitProgress progress) {
+        final GitRemoteUrlPolicy.Decision policy = GitRemoteUrlPolicy.decide(url);
+        if (!policy.isAllowed()) {
+            return GitResult.failed(policy.getRefusal());
+        }
         final GitResult<URIish> parsed = parseUrl(url);
         if (!parsed.isOk()) {
             return parsed.asError();
@@ -90,15 +94,23 @@ final class JGitRemoteOps {
             return GitResult.cancelled();
         }
         final boolean existedBefore = targetDir.exists();
-        try (Git git = Git.cloneRepository()
-                .setURI(parsed.getValue().toString())
-                .setDirectory(targetDir)
-                .setCredentialsProvider(JGitCredentials.forSource(credentials))
-                .setProgressMonitor(new JGitProgressMonitor(progress))
-                .setTimeout(TIMEOUT_SECONDS)
-                .call()) {
-            JGitRepos.disableAutoGc(git.getRepository());
-            return GitResult.ok(JGitRepos.describe(git.getRepository()));
+        // No repository yet, so there is no stored config to check the URL against: the key came from
+        // the clone dialog, where the user chose it for this very URL.
+        try (JGitSsh ssh = JGitSsh.forOperation(credentials, policy.getTransport(), null, url)) {
+            if (ssh.getRefusal() != null) {
+                return GitResult.failed(ssh.getRefusal());
+            }
+            try (Git git = Git.cloneRepository()
+                    .setURI(parsed.getValue().toString())
+                    .setDirectory(targetDir)
+                    .setCredentialsProvider(JGitCredentials.forSource(credentials))
+                    .setTransportConfigCallback(ssh.getCallback())
+                    .setProgressMonitor(new JGitProgressMonitor(progress))
+                    .setTimeout(TIMEOUT_SECONDS)
+                    .call()) {
+                JGitRepos.disableAutoGc(git.getRepository());
+                return GitResult.ok(JGitRepos.describe(git.getRepository()));
+            }
         } catch (Exception e) {
             if (!existedBefore) {
                 deleteQuietly(targetDir);
@@ -115,11 +127,16 @@ final class JGitRemoteOps {
             if (remote == null) {
                 return GitResult.failed(NO_REMOTE);
             }
-            final GitResult<GitAheadBehind> refused = remoteRefusal(repo, remote, false);
-            if (refused != null) {
-                return refused;
+            final RemoteCheck check = checkRemote(repo, remote, false);
+            if (check.refusal != null) {
+                return GitResult.failed(check.refusal);
             }
-            doFetch(git, remote, credentials, progress);
+            try (JGitSsh ssh = JGitSsh.forOperation(credentials, check.transport, repoDir, check.url)) {
+                if (ssh.getRefusal() != null) {
+                    return GitResult.failed(ssh.getRefusal());
+                }
+                doFetch(git, remote, credentials, ssh, progress);
+            }
             if (isCancelled(progress)) {
                 return GitResult.cancelled();
             }
@@ -140,7 +157,8 @@ final class JGitRemoteOps {
         }
     }
 
-    private static void doFetch(final Git git, final String remote, final GitCredentialsSource credentials, final GitProgress progress)
+    private static void doFetch(final Git git, final String remote, final GitCredentialsSource credentials,
+                                final JGitSsh ssh, final GitProgress progress)
             throws GitAPIException, URISyntaxException {
         final RemoteConfig remoteConfig = new RemoteConfig(git.getRepository().getConfig(), remote);
         final List<RefSpec> specs = remoteConfig.getFetchRefSpecs().isEmpty()
@@ -150,6 +168,7 @@ final class JGitRemoteOps {
                 .setRemote(remote)
                 .setRefSpecs(specs)
                 .setCredentialsProvider(JGitCredentials.forSource(credentials))
+                .setTransportConfigCallback(ssh.getCallback())
                 .setProgressMonitor(new JGitProgressMonitor(progress))
                 .setTimeout(TIMEOUT_SECONDS)
                 .call();
@@ -210,12 +229,17 @@ final class JGitRemoteOps {
             if (remote == null) {
                 return GitResult.failed(NO_REMOTE);
             }
-            final GitResult<GitRepoInfo> refused = remoteRefusal(repo, remote, false);
-            if (refused != null) {
-                return refused;
+            final RemoteCheck check = checkRemote(repo, remote, false);
+            if (check.refusal != null) {
+                return GitResult.failed(check.refusal);
             }
             applyAuthor(repo, author);
-            doFetch(git, remote, credentials, progress);
+            try (JGitSsh ssh = JGitSsh.forOperation(credentials, check.transport, repoDir, check.url)) {
+                if (ssh.getRefusal() != null) {
+                    return GitResult.failed(ssh.getRefusal());
+                }
+                doFetch(git, remote, credentials, ssh, progress);
+            }
             if (isCancelled(progress)) {
                 return GitResult.cancelled();
             }
@@ -329,21 +353,28 @@ final class JGitRemoteOps {
             if (repo.resolve(Constants.HEAD) == null) {
                 return GitResult.failed("Nothing to push: the repository has no commits yet");
             }
-            final GitResult<Void> refused = remoteRefusal(repo, remote, true);
-            if (refused != null) {
-                return refused;
+            final RemoteCheck check = checkRemote(repo, remote, true);
+            if (check.refusal != null) {
+                return GitResult.failed(check.refusal);
             }
             final BranchConfig branchConfig = new BranchConfig(repo.getConfig(), branch);
             final String remoteBranchRef = branchConfig.getMerge() != null && remote.equals(branchConfig.getRemote())
                     ? branchConfig.getMerge()
                     : Constants.R_HEADS + branch;
-            final Iterable<PushResult> results = git.push()
-                    .setRemote(remote)
-                    .setRefSpecs(new RefSpec(Constants.R_HEADS + branch + ":" + remoteBranchRef))
-                    .setCredentialsProvider(JGitCredentials.forSource(credentials))
-                    .setProgressMonitor(new JGitProgressMonitor(progress))
-                    .setTimeout(TIMEOUT_SECONDS)
-                    .call();
+            final Iterable<PushResult> results;
+            try (JGitSsh ssh = JGitSsh.forOperation(credentials, check.transport, repoDir, check.url)) {
+                if (ssh.getRefusal() != null) {
+                    return GitResult.failed(ssh.getRefusal());
+                }
+                results = git.push()
+                        .setRemote(remote)
+                        .setRefSpecs(new RefSpec(Constants.R_HEADS + branch + ":" + remoteBranchRef))
+                        .setCredentialsProvider(JGitCredentials.forSource(credentials))
+                        .setTransportConfigCallback(ssh.getCallback())
+                        .setProgressMonitor(new JGitProgressMonitor(progress))
+                        .setTimeout(TIMEOUT_SECONDS)
+                        .call();
+            }
             if (isCancelled(progress)) {
                 return GitResult.cancelled();
             }
@@ -565,6 +596,10 @@ final class JGitRemoteOps {
     }
 
     GitResult<List<String>> lsRemote(final String url, final GitCredentialsSource credentials, final GitProgress progress) {
+        final GitRemoteUrlPolicy.Decision policy = GitRemoteUrlPolicy.decide(url);
+        if (!policy.isAllowed()) {
+            return GitResult.failed(policy.getRefusal());
+        }
         final GitResult<URIish> parsed = parseUrl(url);
         if (!parsed.isOk()) {
             return parsed.asError();
@@ -572,11 +607,17 @@ final class JGitRemoteOps {
         if (isCancelled(progress)) {
             return GitResult.cancelled();
         }
-        try {
+        // "Test connection" in the dialogs: the URL and the key are the ones the user just chose, so
+        // there is nothing stored to check them against yet.
+        try (JGitSsh ssh = JGitSsh.forOperation(credentials, policy.getTransport(), null, url)) {
+            if (ssh.getRefusal() != null) {
+                return GitResult.failed(ssh.getRefusal());
+            }
             final Collection<Ref> refs = Git.lsRemoteRepository()
                     .setRemote(parsed.getValue().toString())
                     .setHeads(true)
                     .setCredentialsProvider(JGitCredentials.forSource(credentials))
+                    .setTransportConfigCallback(ssh.getCallback())
                     .setTimeout(TIMEOUT_SECONDS)
                     .call();
             final TreeSet<String> names = new TreeSet<>();
@@ -606,9 +647,36 @@ final class JGitRemoteOps {
     }
 
     /**
+     * What {@link #checkRemote} concluded: either a refusal, or the URL the operation will connect to
+     * and the transport it belongs to.
+     */
+    private static final class RemoteCheck {
+        /** {@code null} when the operation may proceed. */
+        final String refusal;
+        /** The URL JGit will actually use, after {@code pushurl} and {@code insteadOf} were applied. */
+        final String url;
+        final GitRemoteUrlPolicy.Transport transport;
+
+        private RemoteCheck(final String refusal, final String url, final GitRemoteUrlPolicy.Transport transport) {
+            this.refusal = refusal;
+            this.url = url;
+            this.transport = transport;
+        }
+
+        static RemoteCheck refused(final String refusal) {
+            return new RemoteCheck(refusal, null, null);
+        }
+    }
+
+    /**
      * Checks what {@code .git/config} says before a fetch, pull or push hands credentials to it. The
      * dialogs validate what the user types, but the URL used here comes off disk and the repository
      * sits on shared storage, so it is re-checked every time: see {@link GitRemoteUrlPolicy}.
+     * <p>
+     * The check also reports <i>which</i> credential the URL may be given, because that is the same
+     * question: the token goes to https, the SSH key to an SSH URL that the app itself recorded (see
+     * {@link net.gsantner.markor.git.ssh.GitSshRemoteTrust}, which the SSH source applies on top of
+     * this), and a {@code file://} remote gets neither.
      * <p>
      * {@code http.sslVerify = false} is refused in the same breath. JGit honours that key from the
      * repository configuration and would then accept any certificate, which turns https back into an
@@ -616,13 +684,13 @@ final class JGitRemoteOps {
      *
      * @param forPush {@code true} for a push, which uses {@code remote.<name>.pushurl} when there is
      *                one; fetch and pull only ever use {@code remote.<name>.url}
-     * @return {@code null} when the operation may proceed, otherwise the failed result to return
+     * @return never {@code null}; {@link RemoteCheck#refusal} is what to return when it is set
      */
-    private static <T> GitResult<T> remoteRefusal(final Repository repo, final String remote, final boolean forPush) {
+    private static RemoteCheck checkRemote(final Repository repo, final String remote, final boolean forPush) {
         final StoredConfig config = repo.getConfig();
-        final GitResult<T> badHttp = httpSectionRefusal(config);
+        final String badHttp = httpSectionRefusal(config);
         if (badHttp != null) {
-            return badHttp;
+            return RemoteCheck.refused(badHttp);
         }
         final List<URIish> fetchUris;
         final List<URIish> pushUris;
@@ -631,13 +699,13 @@ final class JGitRemoteOps {
             fetchUris = remoteConfig.getURIs();
             pushUris = remoteConfig.getPushURIs();
         } catch (URISyntaxException e) {
-            return GitResult.failed("The remote URL cannot be parsed");
+            return RemoteCheck.refused("The remote URL cannot be parsed");
         }
         // What this operation will actually connect to: JGit prefers pushurl for a push and falls
         // back to url only when there is none.
         final List<URIish> used = forPush && !pushUris.isEmpty() ? pushUris : fetchUris;
         if (used.isEmpty()) {
-            return GitResult.failed(NO_REMOTE);
+            return RemoteCheck.refused(NO_REMOTE);
         }
         // The raw strings as well as the parsed URIs. The raw string is what the user would have to
         // fix and is the only form in which https://:token@host/x survives - URIish reformats it to
@@ -648,16 +716,31 @@ final class JGitRemoteOps {
                 forPush && !pushUris.isEmpty() ? PUSH_URL : ConfigConstants.CONFIG_KEY_URL)) {
             final String refusal = GitRemoteUrlPolicy.refusalFor(raw);
             if (refusal != null) {
-                return GitResult.failed(refusal);
+                return RemoteCheck.refused(refusal);
             }
         }
+        GitRemoteUrlPolicy.Transport transport = null;
         for (final URIish uri : used) {
-            final String refusal = GitRemoteUrlPolicy.refusalFor(uri.toString());
-            if (refusal != null) {
-                return GitResult.failed(refusal);
+            final GitRemoteUrlPolicy.Decision decision = GitRemoteUrlPolicy.decide(uri.toString());
+            if (!decision.isAllowed()) {
+                return RemoteCheck.refused(decision.getRefusal());
+            }
+            if (transport == null) {
+                transport = decision.getTransport();
+            } else if (transport != decision.getTransport()) {
+                // Several URLs for one remote, not all the same kind. JGit would try them in order;
+                // rather than guess which credential the run belongs to, nothing is offered.
+                return RemoteCheck.refused("This repository's remote has several addresses of different"
+                        + " kinds in .git/config. Leave one of them and sync again.");
             }
         }
-        return forPush ? JGitRemoteOps.<T>divergingPushUrlRefusal(fetchUris, pushUris) : null;
+        if (forPush) {
+            final String diverging = divergingPushUrlRefusal(fetchUris, pushUris);
+            if (diverging != null) {
+                return RemoteCheck.refused(diverging);
+            }
+        }
+        return new RemoteCheck(null, used.get(0).toString(), transport);
     }
 
     /**
@@ -671,12 +754,12 @@ final class JGitRemoteOps {
      *
      * @return {@code null} when there is no pushurl, or it names the same place as the fetch URL
      */
-    private static <T> GitResult<T> divergingPushUrlRefusal(final List<URIish> fetchUris, final List<URIish> pushUris) {
+    private static String divergingPushUrlRefusal(final List<URIish> fetchUris, final List<URIish> pushUris) {
         for (final URIish push : pushUris) {
             if (!fetchUris.contains(push)) {
-                return GitResult.failed("This repository's configuration pushes to a different address"
+                return "This repository's configuration pushes to a different address"
                         + " than the one shown (remote.<name>.pushurl in .git/config). Remove that line,"
-                        + " or set the remote URL to the address you want to push to.");
+                        + " or set the remote URL to the address you want to push to.";
             }
         }
         return null;
@@ -703,19 +786,19 @@ final class JGitRemoteOps {
      * {@code .git/config} cannot.</li>
      * </ul>
      */
-    private static <T> GitResult<T> httpSectionRefusal(final StoredConfig config) {
+    private static String httpSectionRefusal(final StoredConfig config) {
         final List<String> sections = new ArrayList<>();
         sections.add(null);
         sections.addAll(config.getSubsections(HTTP_SECTION));
         for (final String subsection : sections) {
             if (!config.getBoolean(HTTP_SECTION, subsection, SSL_VERIFY, true)) {
-                return GitResult.failed("This repository's configuration turns TLS certificate checking off"
-                        + " (http.sslVerify = false). Remove that line from .git/config before syncing.");
+                return "This repository's configuration turns TLS certificate checking off"
+                        + " (http.sslVerify = false). Remove that line from .git/config before syncing.";
             }
             if (config.getString(HTTP_SECTION, subsection, COOKIE_FILE) != null
                     || config.getBoolean(HTTP_SECTION, subsection, SAVE_COOKIES, false)) {
-                return GitResult.failed("This repository's configuration points git at a cookie file"
-                        + " (http.cookieFile in .git/config). Remove that line before syncing.");
+                return "This repository's configuration points git at a cookie file"
+                        + " (http.cookieFile in .git/config). Remove that line before syncing.";
             }
         }
         return null;
