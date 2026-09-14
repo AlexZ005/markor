@@ -17,7 +17,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.charset.Charset;
 import java.security.SecureRandom;
@@ -53,8 +52,12 @@ import java.util.logging.Logger;
  * the code that runs the git operation has to ask for it.
  *
  * <h3>Threads</h3>
- * Every method is synchronized and does file I/O, so call them off the main thread. Key generation
- * takes a few hundred milliseconds for RSA 4096 on a phone.
+ * Every method is synchronized. {@link #generate}, {@link #importKey}, {@link #delete} and
+ * {@link #loadPrivateKey(String)} belong on a worker thread: RSA 4096 takes a few hundred
+ * milliseconds on a phone, and the others read, write or shred files and use the Keystore.
+ * {@link #list()}, {@link #get(String)}, {@link #getDefault()} and {@link #exportPublicKey(String)}
+ * read one small app-private JSON file and may be called from the UI, like the settings summary
+ * does; {@link #isUsable()} may not, because the first call creates the Keystore key.
  *
  * <h3>Plain Java</h3>
  * No Android imports: the folder and the encryption are handed in, which is what lets the whole
@@ -210,16 +213,26 @@ public final class GitSshKeyStore {
      */
     public synchronized boolean setDefault(final String id) {
         loadIndex();
+        final String wanted;
         if (id == null || id.trim().isEmpty()) {
-            _defaultKeyId = null;
-            return writeIndexQuietly();
+            wanted = null;
+        } else {
+            final GitSshKey key = get(id);
+            if (key == null || !key.canAuthenticate()) {
+                return false;
+            }
+            wanted = key.getId();
         }
-        final GitSshKey key = get(id);
-        if (key == null || !key.canAuthenticate()) {
-            return false;
+        // The in-memory default is rolled back when it could not be persisted: reporting failure
+        // while still handing every later operation the new key would authenticate with a key the
+        // user was just told was refused, and a restart would silently undo it again.
+        final String previous = _defaultKeyId;
+        _defaultKeyId = wanted;
+        if (writeIndexQuietly()) {
+            return true;
         }
-        _defaultKeyId = key.getId();
-        return writeIndexQuietly();
+        _defaultKeyId = previous;
+        return false;
     }
 
     /**
@@ -287,7 +300,7 @@ public final class GitSshKeyStore {
     /** Same as {@link #generate(GitSshKey.Type, String)} with an explicit size; tests use 2048 bits. */
     synchronized GitSshKey generate(final GitSshKey.Type type, final String name, final int bits) throws GitSshKeyException {
         if (type == null || !type.isOfferedForGeneration()) {
-            throw new GitSshKeyException(GitSshKeyException.Reason.INVALID_REQUEST,
+            throw new GitSshKeyException(GitSshKeyException.Reason.UNSUPPORTED_TYPE,
                     "This build cannot generate a key of type " + type);
         }
         if (name == null || name.trim().isEmpty()) {
@@ -426,13 +439,22 @@ public final class GitSshKeyStore {
         if (removed == null) {
             return false;
         }
+        final int position = _keys.indexOf(removed);
         _keys.remove(removed);
+        final String previousDefault = _defaultKeyId;
         if (wanted.equals(_defaultKeyId)) {
             // No silent promotion of another key: which identity is used must stay a decision the
             // user made, not a consequence of a deletion.
             _defaultKeyId = null;
         }
-        writeIndexQuietly();
+        // The index goes first, and the key file is only destroyed once the entry is really gone.
+        // The other order leaves an entry with no file behind when the write fails - a key the UI
+        // cannot show or delete any more, which getDefault() would keep pointing at.
+        if (!writeIndexQuietly()) {
+            _keys.add(Math.min(position, _keys.size()), removed);
+            _defaultKeyId = previousDefault;
+            return false;
+        }
         shredAndDelete(keyFile(wanted));
         final File dir = keyDir(wanted);
         if (dir != null) {
@@ -527,7 +549,9 @@ public final class GitSshKeyStore {
         }
 
         _keys.add(key);
-        final boolean firstUsableKey = _defaultKeyId == null && key.canAuthenticate();
+        // getDefault(), not _defaultKeyId: an id naming an entry whose key file is gone reports no
+        // default, and the next usable key created must then become it.
+        final boolean firstUsableKey = getDefault() == null && key.canAuthenticate();
         if (firstUsableKey) {
             _defaultKeyId = id;
         }
@@ -620,9 +644,9 @@ public final class GitSshKeyStore {
         final File temp = new File(_root, INDEX_TEMP_FILE);
         final File index = new File(_root, INDEX_FILE);
         writeFile(temp, json);
-        // Replace in one step, so a process death cannot leave a half-written index behind.
-        //noinspection ResultOfMethodCallIgnored
-        index.delete();
+        // rename(2) replaces the destination in one step, so the index is never absent and never
+        // half-written. Deleting it first would open a window in which a process death loses every
+        // key at once, since the key files alone carry no names, types or default.
         if (!temp.renameTo(index)) {
             //noinspection ResultOfMethodCallIgnored
             temp.delete();
@@ -665,9 +689,12 @@ public final class GitSshKeyStore {
     }
 
     private static void writeFile(final File file, final byte[] content) throws GitSshKeyException {
-        try (final OutputStream out = new FileOutputStream(file)) {
+        try (final FileOutputStream out = new FileOutputStream(file)) {
             out.write(content);
             out.flush();
+            // On disk before the caller renames it over the index: flush() alone leaves the bytes in
+            // the page cache, where a power loss turns the renamed file into an empty one.
+            out.getFD().sync();
         } catch (final IOException e) {
             throw new GitSshKeyException(GitSshKeyException.Reason.IO, "Cannot write " + file.getName(), e);
         }

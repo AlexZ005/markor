@@ -90,6 +90,8 @@ public final class GitUiText {
                 return context.getString(R.string.git_ssh_keys__error_crypto_failed);
             case INVALID_REQUEST:
                 return context.getString(R.string.git_ssh_keys__name_required);
+            case UNSUPPORTED_TYPE:
+                return context.getString(R.string.git_ssh_keys__error_unsupported_type);
             default:
                 // NOT_FOUND, IO and GENERATE_FAILED are not the user's doing and have nothing more
                 // specific to say; the developer detail stays in the exception, out of the UI.

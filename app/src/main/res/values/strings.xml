@@ -752,6 +752,9 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_ssh_keys__error_crypto">This device cannot store the key safely; nothing was saved.</string>
     <string name="git_ssh_keys__error_crypto_failed">The stored key cannot be decrypted any more. Delete it and add a new one.</string>
     <string name="git_ssh_keys__error_generic">The key could not be saved</string>
+    <string name="git_ssh_keys__error_unsupported_type">This build cannot create a key of that type</string>
+    <string name="git_ssh_keys__passphrase_required">Enter the passphrase of the file</string>
+    <string name="git_ssh_keys__delete_failed">The key could not be deleted</string>
     <string name="git_tab__push_confirm_title">Push to the remote?</string>
     <plurals name="git_tab__push_confirm_message">
         <item quantity="one">%1$d commit is sent to %2$s.</item>

@@ -34,8 +34,10 @@ public class GitSshKeyException extends Exception {
         UNREADABLE_KEY,
         /** Key generation failed inside JSch. */
         GENERATE_FAILED,
-        /** The key name was empty, or the requested type cannot be generated in this build. */
-        INVALID_REQUEST
+        /** The key name was empty. */
+        INVALID_REQUEST,
+        /** The requested key type cannot be generated in this build (ed25519 needs Bouncy Castle). */
+        UNSUPPORTED_TYPE
     }
 
     private final Reason _reason;
