@@ -622,7 +622,7 @@ public class GitFragment extends MarkorBaseFragment {
                         loadMoreHistory();
                     }
                     runAfterRefresh();
-                    maybeSuggestGitIgnore(root);
+                    maybeWarnAboutSync(root, () -> maybeSuggestGitIgnore(root));
                     maybeFetchOnOpen();
                 });
     }
@@ -918,6 +918,23 @@ public class GitFragment extends MarkorBaseFragment {
         } else {
             refresh(false);
         }
+    }
+
+    /**
+     * Task 7.3: the one-time "do not let a sync tool touch {@code .git}" warning. It is hung off the
+     * first successful refresh of a repository rather than off {@code activate}, because a clone that
+     * finishes while its dialog is gone is registered by {@link CloneRunner} and never passes through
+     * there. {@link GitSyncWarningDialog} remembers the path, so this is a no-op from then on.
+     * {@code next} runs once the dialog is gone, so the {@code .gitignore} suggestion follows it
+     * instead of appearing on top of it.
+     */
+    private void maybeWarnAboutSync(final File root, final Runnable next) {
+        final Activity activity = getActivity();
+        if (activity == null) {
+            next.run();
+            return;
+        }
+        GitSyncWarningDialog.maybeWarn(activity, root, next::run);
     }
 
     private void maybeSuggestGitIgnore(final File root) {

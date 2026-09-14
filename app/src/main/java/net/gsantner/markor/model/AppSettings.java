@@ -1231,4 +1231,22 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
             setStringList(R.string.pref_key__git_ignore_suggested_paths, paths);
         }
     }
+
+    // Repositories whose user already saw the "a folder sync tool corrupts .git" warning, so it is
+    // shown at most once per repository (task 7.3).
+    public boolean isGitSyncWarningShown(final String repoPath) {
+        return repoPath != null && !repoPath.isEmpty()
+                && getStringList(R.string.pref_key__git_sync_warning_shown_paths).contains(repoPath);
+    }
+
+    public void setGitSyncWarningShown(final String repoPath) {
+        if (repoPath == null || repoPath.isEmpty()) {
+            return;
+        }
+        final ArrayList<String> paths = getStringList(R.string.pref_key__git_sync_warning_shown_paths);
+        if (!paths.contains(repoPath)) {
+            paths.add(repoPath);
+            setStringList(R.string.pref_key__git_sync_warning_shown_paths, paths);
+        }
+    }
 }
