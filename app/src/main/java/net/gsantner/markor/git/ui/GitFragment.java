@@ -324,9 +324,15 @@ public class GitFragment extends MarkorBaseFragment {
             _setupPrimary.setOnClickListener(v -> initRepository(folder));
             _setupSecondary.setText(R.string.git_tab__clone_into_folder);
             _setupSecondary.setOnClickListener(v -> cloneInto(folder));
+            // A way back: to another repository when there is one, otherwise to another folder.
             _setupSuggestion.setVisibility(View.VISIBLE);
-            _setupSuggestion.setText(R.string.git_tab__select_folder);
-            _setupSuggestion.setOnClickListener(v -> chooseFolder());
+            if (_registry.isEmpty()) {
+                _setupSuggestion.setText(R.string.git_tab__select_folder);
+                _setupSuggestion.setOnClickListener(v -> chooseFolder());
+            } else {
+                _setupSuggestion.setText(R.string.git_tab__switch_repository);
+                _setupSuggestion.setOnClickListener(v -> showSwitchRepository());
+            }
             return;
         }
 
@@ -491,9 +497,6 @@ public class GitFragment extends MarkorBaseFragment {
         if (_repoRoot == null || !_repoRoot.equals(previousRoot)) {
             forgetRepositoryData();
         }
-        if (_repoRoot != null) {
-            UI.pendingFolder = null;
-        }
 
         if (_repoRoot == null) {
             _refreshing = false;
@@ -552,7 +555,9 @@ public class GitFragment extends MarkorBaseFragment {
     private void forgetRepositoryData() {
         resetHistory();
         _status.clear();
-        _statusAdapter.notifyDataSetChanged();
+        if (_statusAdapter != null) {
+            _statusAdapter.notifyDataSetChanged();
+        }
         _info = null;
         _aheadBehind = null;
         _lastFetchMillis = 0;
@@ -798,7 +803,7 @@ public class GitFragment extends MarkorBaseFragment {
     }
 
     private void initRepository(final File folder) {
-        runOperation(R.string.git_tab__initializing,
+        runOperation(folder.getAbsolutePath(), R.string.git_tab__initializing,
                 (token, progress) -> _git.init(folder, progress),
                 result -> {
                     if (result.isOk()) {
@@ -859,14 +864,25 @@ public class GitFragment extends MarkorBaseFragment {
      */
     private <T> void runOperation(@StringRes final int labelRes, final Operation<T> operation,
                                   final GsCallback.a1<GitResult<T>> onResult) {
-        final File root = _repoRoot;
-        if (root == null || _opToken != null) {
+        if (_repoRoot != null) {
+            runOperation(_repoRoot.getAbsolutePath(), labelRes, operation, onResult);
+        }
+    }
+
+    /**
+     * Same, for an operation that has no open repository yet (initializing a folder): {@code queueKey}
+     * is the path whose worker thread runs it. The header progress belongs to the repository screen,
+     * so such an operation reports only through its result.
+     */
+    private <T> void runOperation(final String queueKey, @StringRes final int labelRes, final Operation<T> operation,
+                                  final GsCallback.a1<GitResult<T>> onResult) {
+        if (queueKey == null || _opToken != null) {
             return;
         }
         _opLabel = getString(labelRes);
         _progressText.setText(_opLabel);
         final GitTask<GitResult<T>> task = token -> operation.run(token, new GitUiProgress(token, this::onProgress));
-        _opToken = GitTaskRunner.get().submit(root.getAbsolutePath(), task, this::isAlive,
+        _opToken = GitTaskRunner.get().submit(queueKey, task, this::isAlive,
                 (GitTaskResult<GitResult<T>> result) -> {
                     _opToken = null;
                     _opLabel = null;
@@ -977,7 +993,9 @@ public class GitFragment extends MarkorBaseFragment {
                     getString(R.string.git_tab__conflicts_message, fileList(result.getFiles())));
             return;
         }
-        showMessageDialog(R.string.git_tab__diverged_title, getString(R.string.git_tab__diverged_message));
+        // Only Cancel: rebase and merge are task 5.3's, there is nothing to offer here yet.
+        showMessageDialog(R.string.git_tab__diverged_title,
+                getString(R.string.git_tab__diverged_message), android.R.string.cancel);
     }
 
     // ---------------------------------------------------------------- push (task 5.4)
@@ -1134,9 +1152,15 @@ public class GitFragment extends MarkorBaseFragment {
         }
         final PopupMenu popup = new PopupMenu(context, anchor);
         popup.inflate(R.menu.git__fragment__overflow);
+        // "Switch repository" stays available; the rest would race with the running operation.
         final boolean busy = isBusy();
-        final MenuItem fetch = popup.getMenu().findItem(R.id.git__fragment__menu_fetch);
-        fetch.setEnabled(!busy);
+        for (final int id : new int[]{R.id.git__fragment__menu_fetch, R.id.git__fragment__menu_remote,
+                R.id.git__fragment__menu_remove}) {
+            final MenuItem item = popup.getMenu().findItem(id);
+            if (item != null) {
+                item.setEnabled(!busy);
+            }
+        }
         popup.setOnMenuItemClickListener(item -> {
             final int id = item.getItemId();
             if (id == R.id.git__fragment__menu_fetch) {
@@ -1166,6 +1190,10 @@ public class GitFragment extends MarkorBaseFragment {
     }
 
     private void showMessageDialog(@StringRes final int title, final String message) {
+        showMessageDialog(title, message, android.R.string.ok);
+    }
+
+    private void showMessageDialog(@StringRes final int title, final String message, @StringRes final int button) {
         final Activity activity = getActivity();
         if (activity == null) {
             return;
@@ -1173,7 +1201,7 @@ public class GitFragment extends MarkorBaseFragment {
         new AlertDialog.Builder(activity, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
                 .setTitle(title)
                 .setMessage(message)
-                .setPositiveButton(android.R.string.cancel, null)
+                .setPositiveButton(button, null)
                 .show();
     }
 

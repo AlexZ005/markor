@@ -29,19 +29,20 @@ public enum GitTabState {
     /**
      * Picks the state.
      * <p>
-     * An open repository always wins: a folder the user picked earlier and did not initialize is
-     * forgotten as soon as a repository is active, so switching repositories never drops the user
-     * back onto the "not a repository" screen.
+     * A folder the user just picked wins over an open repository: "Add folder…" has to reach the
+     * initialize/clone screen even while another repository is active. The caller drops the pending
+     * folder as soon as a repository is activated (or cloned, or initialized), which is what brings
+     * the repository screen back.
      *
      * @param activeRepoRoot working folder of the active repository, or {@code null} when none is active
      * @param pendingFolder  folder the user selected that turned out not to be a repository, or {@code null}
      * @return the state to render
      */
     public static GitTabState select(final File activeRepoRoot, final File pendingFolder) {
-        if (activeRepoRoot != null) {
-            return REPOSITORY_OPEN;
+        if (pendingFolder != null) {
+            return FOLDER_NOT_A_REPOSITORY;
         }
-        return pendingFolder != null ? FOLDER_NOT_A_REPOSITORY : NO_REPOSITORY;
+        return activeRepoRoot != null ? REPOSITORY_OPEN : NO_REPOSITORY;
     }
 
     /** @return {@code true} for the two states that show the setup screen rather than a repository */
