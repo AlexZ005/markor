@@ -68,6 +68,32 @@ public class JGitErrorsTest {
     }
 
     @Test
+    public void sshPublickeyFailuresBecomeAuthFailed() {
+        // JSch's wording, as seen on the api26 emulator against GitHub with a key it does not know
+        // (doc/adr/0002-ssh-on-android.md, row "wrong-key"). JschConfigSessionFactory wraps the
+        // JSchException in an errors.TransportException, which LsRemote/Fetch/Push re-wrap.
+        assertThat(JGitErrors.map(new TransportException(
+                "git@github.com:me/notes.git: Auth fail for methods 'publickey'"), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.AUTH_FAILED);
+        assertThat(JGitErrors.map(new JGitInternalException("x", new org.eclipse.jgit.errors.TransportException(
+                "ssh://git@github.com/me/notes.git: Auth fail for methods 'publickey'")), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.AUTH_FAILED);
+        assertThat(JGitErrors.map(new TransportException("git@h:x.git: Auth cancel"), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.AUTH_FAILED);
+        assertThat(JGitErrors.map(new TransportException("git@h:x.git: USERAUTH fail"), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.AUTH_FAILED);
+        assertThat(JGitErrors.map(new TransportException("git@h:x.git: Permission denied (publickey)."), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.AUTH_FAILED);
+        // A host key problem is not an authentication problem: it must not be answered with
+        // "check your key". Until GitResult grows a kind of its own it stays FAILED, and the UI asks
+        // GitSshSessionFactory.isHostKeyMismatch / isUnknownHostKey.
+        assertThat(JGitErrors.map(new TransportException("git@h:x.git: HostKey has been changed: h"), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.FAILED);
+        assertThat(JGitErrors.map(new TransportException("git@h:x.git: reject HostKey: h"), GitProgress.NONE, null).getKind())
+                .isEqualTo(GitResult.Kind.FAILED);
+    }
+
+    @Test
     public void networkFailuresBecomeNetwork() {
         assertThat(JGitErrors.map(new TransportException("https://h/x: cannot open git-upload-pack", new UnknownHostException("h")), GitProgress.NONE, null).getKind())
                 .isEqualTo(GitResult.Kind.NETWORK);
