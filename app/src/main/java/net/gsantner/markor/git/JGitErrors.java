@@ -13,6 +13,8 @@ import org.eclipse.jgit.api.errors.TransportException;
 import org.eclipse.jgit.errors.NoRemoteRepositoryException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 
+import net.gsantner.markor.git.ssh.GitSshSessionFactory;
+
 import java.io.File;
 import java.io.InterruptedIOException;
 import java.net.ConnectException;
@@ -45,6 +47,19 @@ final class JGitErrors {
     static <T> GitResult<T> map(final Exception e, final GitProgress progress, final File repoDir) {
         if (progress != null && progress.isCancelled()) {
             return GitResult.cancelled();
+        }
+        // Host keys before everything else. JGit wraps both in a TransportException whose message is
+        // JSch's English prose, where the generic rules below would read "publickey" out of the
+        // unknown-host text and call it an authentication failure - advice that sends the user to
+        // check a key that was never even offered.
+        if (GitSshSessionFactory.isHostKeyMismatch(e)) {
+            return GitResult.hostKeyMismatch("The server's host key changed since this app last"
+                    + " connected to it. Nothing was sent. If the server really was rebuilt, forget its"
+                    + " key under Settings \u203a Git \u203a SSH known hosts and connect again.");
+        }
+        if (GitSshSessionFactory.isUnknownHostKey(e)) {
+            return GitResult.failed("The server's identity was not confirmed, so the connection was"
+                    + " not made. Try again and confirm the fingerprint to trust this server.");
         }
         // Walk the cause chain once: JGit wraps I/O problems in TransportException/JGitInternalException.
         for (Throwable t = e; t != null; t = t.getCause() == t ? null : t.getCause()) {

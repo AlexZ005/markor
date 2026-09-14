@@ -55,6 +55,14 @@ public final class GitResult<T> {
         DIRTY_WORK_TREE,
         /** Host unreachable, DNS failure, timeout, TLS handshake failure, connection reset. Retry later. */
         NETWORK,
+        /**
+         * SSH only: the server presented a host key that is not the one in the app's
+         * {@code known_hosts}. Either the server was rebuilt, or something is between the app and it.
+         * Not an authentication problem — the key was never offered — so it must not be answered with
+         * "check your key", and the stored host key is never replaced as part of handling it: the
+         * user forgets it deliberately under Settings &rsaquo; Git and connects again.
+         */
+        HOST_KEY_MISMATCH,
         /** The given path is not inside a (non-bare) git repository. */
         NOT_A_REPO,
         /** {@link GitProgress#isCancelled()} became true; the operation stopped early. Repository state is unchanged unless documented otherwise. */
@@ -105,6 +113,12 @@ public final class GitResult<T> {
     public static <T> GitResult<T> dirtyWorkTree(final Collection<String> files) {
         final int n = files == null ? 0 : files.size();
         return new GitResult<>(Kind.DIRTY_WORK_TREE, null, "Uncommitted changes in " + n + (n == 1 ? " file" : " files") + " would be overwritten; commit them first", files);
+    }
+
+    /** @param message names the host and says the stored key is forgotten under Settings &rsaquo; Git */
+    public static <T> GitResult<T> hostKeyMismatch(final String message) {
+        return new GitResult<>(Kind.HOST_KEY_MISMATCH, null,
+                orDefault(message, "The server's host key changed since this app last connected to it"), null);
     }
 
     public static <T> GitResult<T> network(final String message) {
