@@ -43,8 +43,18 @@ public final class DiffTextFormatter {
         TRUNCATION_FOOTER
     }
 
-    /** Lines rendered before the diff is cut off. About a screenful per 40 lines; 20k is plenty. */
-    public static final int DEFAULT_MAX_LINES = 20000;
+    /**
+     * Lines rendered before the diff is cut off and the truncation footer is appended.
+     * <p>
+     * The cost is the TextView's, not this class's: the whole diff becomes one {@code StaticLayout},
+     * which measures every line on the main thread. Measured on an API 26 emulator (12sp monospace),
+     * building and setting the spannable took ~100ms at 5000 lines, 236ms at 8000, 473ms at 20000 and
+     * 1712ms at 40000, and the layout after it janked for seconds at the top two. Everything still
+     * renders correctly at 20000 - this is a responsiveness limit, not a rendering one - but a diff
+     * that long is past the point of being read in a viewer, so 5000 buys a screen that appears at
+     * once and a footer that says what was left out.
+     */
+    public static final int DEFAULT_MAX_LINES = 5000;
 
     /**
      * Fallback footer template, used when the caller passes none. Arguments are the number of lines
