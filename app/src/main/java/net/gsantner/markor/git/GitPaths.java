@@ -63,19 +63,21 @@ public final class GitPaths {
      * does not by itself fail the check.
      *
      * @param root the repository working folder
-     * @param path a repository-relative path, as git spells it (forward slashes)
+     * @param path a repository-relative path, as git spells it (forward slashes); used verbatim
      * @return the file inside {@code root}, or {@code null} when the path is empty, absolute, or
-     * resolves to {@code root} itself or anywhere outside it
+     * resolves to {@code root} itself or anywhere outside it. A {@code null} is <b>not</b> a licence
+     * to fall through to a destructive branch: callers skip the path.
      */
     public static File resolveInside(final File root, final String path) {
         if (root == null || path == null) {
             return null;
         }
-        final String trimmed = path.trim();
-        if (trimmed.isEmpty() || new File(trimmed).isAbsolute()) {
+        // The path is never trimmed: a leading or trailing space is legal in a git path name, and
+        // rewriting it here would hand the caller a different file than the repository named.
+        if (path.isEmpty() || new File(path).isAbsolute()) {
             return null;
         }
-        final File candidate = new File(root, trimmed);
+        final File candidate = new File(root, path);
         try {
             final String rootPath = root.getCanonicalPath();
             final String prefix = rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;

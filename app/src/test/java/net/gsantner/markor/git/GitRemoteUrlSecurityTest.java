@@ -78,6 +78,8 @@ public class GitRemoteUrlSecurityTest {
     public void onlyHttpsAndLocalPathsMayCarryRemoteOperations() {
         assertThat(GitRemoteUrlPolicy.refusalFor("https://github.com/me/n.git")).isNull();
         assertThat(GitRemoteUrlPolicy.refusalFor("file:///tmp/bare.git")).isNull();
+        // The one-slash form File.toURI() produces: a scheme URIish sees but "://" does not.
+        assertThat(GitRemoteUrlPolicy.refusalFor("file:/tmp/bare.git")).isNull();
         assertThat(GitRemoteUrlPolicy.refusalFor("/tmp/bare.git")).isNull();
 
         assertThat(GitRemoteUrlPolicy.refusalFor("http://github.com/me/n.git")).isNotNull();
@@ -85,6 +87,24 @@ public class GitRemoteUrlSecurityTest {
         assertThat(GitRemoteUrlPolicy.refusalFor("ssh://git@github.com/me/n.git")).isNotNull();
         assertThat(GitRemoteUrlPolicy.refusalFor("git://github.com/me/n.git")).isNotNull();
         assertThat(GitRemoteUrlPolicy.refusalFor("git@github.com:me/n.git")).isNotNull();
+    }
+
+    /**
+     * The scheme is judged before the userinfo, so an SSH remote is told SSH is unsupported instead of
+     * being told to remove the "git@" — advice that would not help and that the user would follow
+     * before finding out.
+     */
+    @Test
+    public void anSshRemoteIsToldAboutSshRatherThanAboutItsUsername() {
+        assertThat(GitRemoteUrlPolicy.refusalFor("ssh://git@github.com/me/n.git")).contains("SSH");
+        assertThat(GitRemoteUrlPolicy.refusalFor("git+ssh://git@github.com/me/n.git")).contains("SSH");
+        assertThat(GitRemoteUrlPolicy.refusalFor("git@github.com:me/n.git")).contains("SSH");
+    }
+
+    /** {@code http://} outranks the userinfo too: the scheme is the reason the URL cannot be used. */
+    @Test
+    public void aCleartextRemoteIsToldAboutHttpEvenWhenItAlsoCarriesAToken() {
+        assertThat(GitRemoteUrlPolicy.refusalFor("http://" + TOKEN + "@github.com/me/n.git")).contains("http://");
     }
 
     @Test

@@ -477,7 +477,7 @@ final class JGitRemoteOps {
                 if (text == null || text.trim().isEmpty()) {
                     text = "Merge";
                 }
-                final CommitCommand commit = git.commit().setMessage(text);
+                final CommitCommand commit = git.commit().setMessage(text).setNoVerify(true);
                 if (author != null) {
                     commit.setAuthor(author.getName(), author.getEmail()).setCommitter(author.getName(), author.getEmail());
                 }
@@ -514,7 +514,11 @@ final class JGitRemoteOps {
         RmCommand rm = null;
         for (final String path : paths) {
             final File file = GitPaths.resolveInside(workTree, path);
-            if (file != null && file.exists()) {
+            if (file == null) {
+                // Outside the working folder: skipped rather than sent to git rm, which deletes.
+                continue;
+            }
+            if (file.exists()) {
                 add = (add == null ? git.add() : add).addFilepattern(path);
             } else {
                 rm = (rm == null ? git.rm() : rm).addFilepattern(path);
@@ -616,16 +620,9 @@ final class JGitRemoteOps {
      */
     private static <T> GitResult<T> remoteRefusal(final Repository repo, final String remote, final boolean forPush) {
         final StoredConfig config = repo.getConfig();
-        if (!config.getBoolean(HTTP_SECTION, SSL_VERIFY, true)) {
-            return GitResult.failed("This repository's configuration turns TLS certificate checking off"
-                    + " (http.sslVerify = false). Remove that line from .git/config before syncing.");
-        }
-        // http.cookieFile names an absolute path JGit reads cookies from and, with http.saveCookies,
-        // writes back to - as this app, so it reaches places the writer of .git/config cannot. The app
-        // never sets either key, so their presence means someone else put them there.
-        if (config.getString(HTTP_SECTION, null, COOKIE_FILE) != null || config.getBoolean(HTTP_SECTION, SAVE_COOKIES, false)) {
-            return GitResult.failed("This repository's configuration points git at a cookie file"
-                    + " (http.cookieFile in .git/config). Remove that line before syncing.");
+        final GitResult<T> badHttp = httpSectionRefusal(config);
+        if (badHttp != null) {
+            return badHttp;
         }
         final List<URIish> fetchUris;
         final List<URIish> pushUris;
@@ -641,6 +638,18 @@ final class JGitRemoteOps {
         final List<URIish> used = forPush && !pushUris.isEmpty() ? pushUris : fetchUris;
         if (used.isEmpty()) {
             return GitResult.failed(NO_REMOTE);
+        }
+        // The raw strings as well as the parsed URIs. The raw string is what the user would have to
+        // fix and is the only form in which https://:token@host/x survives - URIish reformats it to
+        // something the policy can no longer read the userinfo out of. The parsed URIs are checked
+        // too because RemoteConfig applies url.<base>.insteadOf rewriting before handing them over,
+        // which the raw strings do not show.
+        for (final String raw : config.getStringList(ConfigConstants.CONFIG_REMOTE_SECTION, remote,
+                forPush && !pushUris.isEmpty() ? PUSH_URL : ConfigConstants.CONFIG_KEY_URL)) {
+            final String refusal = GitRemoteUrlPolicy.refusalFor(raw);
+            if (refusal != null) {
+                return GitResult.failed(refusal);
+            }
         }
         for (final URIish uri : used) {
             final String refusal = GitRemoteUrlPolicy.refusalFor(uri.toString());
@@ -673,10 +682,50 @@ final class JGitRemoteOps {
         return null;
     }
 
+    /**
+     * Refuses a repository whose {@code [http]} configuration would weaken the transport.
+     * <p>
+     * Both keys have to be read in the bare form <i>and</i> in every {@code [http "<url>"]}
+     * subsection: {@code HttpConfig.init} reads the bare value first and then overwrites it from the
+     * subsection whose URL matches the remote ({@code getSubsections("http")} →
+     * {@code findMatch(Set, URIish)} → the four-argument {@code getBoolean}), so a bare-key-only check
+     * is bypassed by
+     * <pre>[http "https://github.com/"]
+     *     sslVerify = false</pre>
+     * Every subsection is inspected rather than only the matching one: the match is JGit's own
+     * longest-prefix rule over a URL the app has just decided not to trust, and refusing one key too
+     * many costs nothing here - the app writes no {@code http.*} key at all.
+     * <ul>
+     * <li>{@code sslVerify = false} makes JGit install a no-op trust manager and an always-true
+     * hostname verifier ({@code HttpSupport.disableSslVerify}), so https stops protecting the token.</li>
+     * <li>{@code cookieFile} names an absolute path JGit reads cookies from and, with
+     * {@code saveCookies}, writes back to - as this app, so it reaches places the writer of
+     * {@code .git/config} cannot.</li>
+     * </ul>
+     */
+    private static <T> GitResult<T> httpSectionRefusal(final StoredConfig config) {
+        final List<String> sections = new ArrayList<>();
+        sections.add(null);
+        sections.addAll(config.getSubsections(HTTP_SECTION));
+        for (final String subsection : sections) {
+            if (!config.getBoolean(HTTP_SECTION, subsection, SSL_VERIFY, true)) {
+                return GitResult.failed("This repository's configuration turns TLS certificate checking off"
+                        + " (http.sslVerify = false). Remove that line from .git/config before syncing.");
+            }
+            if (config.getString(HTTP_SECTION, subsection, COOKIE_FILE) != null
+                    || config.getBoolean(HTTP_SECTION, subsection, SAVE_COOKIES, false)) {
+                return GitResult.failed("This repository's configuration points git at a cookie file"
+                        + " (http.cookieFile in .git/config). Remove that line before syncing.");
+            }
+        }
+        return null;
+    }
+
     private static final String HTTP_SECTION = "http";
     private static final String SSL_VERIFY = "sslVerify";
     private static final String COOKIE_FILE = "cookieFile";
     private static final String SAVE_COOKIES = "saveCookies";
+    private static final String PUSH_URL = "pushurl";
 
     private static boolean isCancelled(final GitProgress progress) {
         return progress != null && progress.isCancelled();

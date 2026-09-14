@@ -40,7 +40,7 @@ import java.util.Locale;
  */
 final class GitRemoteUrlPolicy {
 
-    /** Schemes JGit can reach over the network but that this app must never use. */
+    /** The one scheme that may carry the access token. */
     private static final String HTTPS = "https";
 
     private GitRemoteUrlPolicy() {
@@ -56,19 +56,37 @@ final class GitRemoteUrlPolicy {
             return "The remote has no URL configured";
         }
         final String trimmed = url.trim();
-        if (JGitRepos.hasUserinfo(trimmed)) {
-            return "The remote URL carries a user name or password. Remove it from the URL and enter"
-                    + " the token in the remote settings instead, so it is not stored in .git/config.";
-        }
 
-        final URIish uri;
+        URIish uri = null;
         try {
             uri = new URIish(trimmed);
         } catch (URISyntaxException e) {
-            return "The remote URL cannot be parsed";
+            // Reported below, once the scheme has had its say.
+        }
+        // From the string when it is written as scheme://, because for https://:token@host/x URIish
+        // reports neither a scheme nor a host; from URIish otherwise, since it also understands the
+        // one-slash form file:/path that File.toURI() produces.
+        String scheme = schemeOf(trimmed);
+        if (scheme == null && uri != null && uri.getScheme() != null) {
+            scheme = uri.getScheme().toLowerCase(Locale.ROOT);
         }
 
-        final String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase(Locale.ROOT);
+        // Both judged before the userinfo, so an SSH remote is told SSH is unsupported rather than
+        // being told to remove the "git@" - advice that would not help.
+        if (scheme != null && !HTTPS.equals(scheme) && !"file".equals(scheme)) {
+            return unsupported(scheme);
+        }
+        if (scheme == null && looksScpLike(trimmed)) {
+            return unsupported("ssh");
+        }
+        if (JGitRepos.hasUserinfo(trimmed)) {
+            return "The remote URL carries a user name or password. Remove it in the Git tab under"
+                    + " \u22ee \u2023 Remote\u2026 and enter the token in the field below the URL, so it is"
+                    + " not stored in .git/config.";
+        }
+        if (uri == null) {
+            return "The remote URL cannot be parsed";
+        }
         if (uri.getHost() == null || uri.getHost().isEmpty()) {
             // file:// or a local path: no network, and no stored token can be keyed to it.
             return scheme == null || "file".equals(scheme) ? null : unsupported(scheme);
@@ -76,7 +94,42 @@ final class GitRemoteUrlPolicy {
         return HTTPS.equals(scheme) ? null : unsupported(scheme);
     }
 
+    /**
+     * The scp-like syntax git understands without a scheme: {@code [user@]host:path}, where the part
+     * before the colon carries no slash (otherwise it is a plain relative path such as {@code a/b:c}).
+     * Mirrors {@code GitRemoteUrlValidator.looksScpLike}, which judges the same shape in the dialogs.
+     */
+    private static boolean looksScpLike(final String url) {
+        if (url.startsWith("/") || url.startsWith(".")) {
+            return false;
+        }
+        final int colon = url.indexOf(':');
+        if (colon <= 0 || colon == url.length() - 1) {
+            return false;
+        }
+        return url.lastIndexOf('/', colon) < 0;
+    }
+
+    /** @return the lower-case scheme written in front of {@code ://}, or {@code null} when there is none */
+    private static String schemeOf(final String url) {
+        final int end = url.indexOf("://");
+        if (end <= 0) {
+            return null;
+        }
+        final String scheme = url.substring(0, end).toLowerCase(Locale.ROOT);
+        for (int i = 0; i < scheme.length(); i++) {
+            final char c = scheme.charAt(i);
+            if (!Character.isLetterOrDigit(c) && c != '+' && c != '.' && c != '-') {
+                return null;
+            }
+        }
+        return scheme;
+    }
+
     private static String unsupported(final String scheme) {
+        if ("ssh".equals(scheme) || scheme != null && (scheme.endsWith("+ssh") || scheme.startsWith("ssh+"))) {
+            return "Only https:// remotes are supported; SSH is not available in this version.";
+        }
         if ("http".equals(scheme)) {
             return "This repository's remote uses plain http://, which would send the access token"
                     + " unencrypted. Change the remote to https:// before syncing.";
