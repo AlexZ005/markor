@@ -37,6 +37,8 @@ Three properties of this feature decide how the findings below are rated.
 | 11 | **Medium** | `resolveInside` trimmed the path, so `"draft .md"` resolved to `"draft.md"` | `GitPaths.java:74` | **Fixed** — `80e579ea` |
 | 12 | Low | Commits ran `.git/hooks`, which sits beside the `.git/config` the threat model distrusts | `JGitLocalOps.java:427`, `JGitRemoteOps.java` | **Fixed** — `80e579ea` |
 | 13 | Low | Wrong refusal message for SSH remotes and for `https://:token@host/x` | `GitRemoteUrlPolicy.java` | **Fixed** — `80e579ea` |
+| 14 | — | `JGitCredentials` handed the token out for any scheme; only the layer above stopped it | `JGitCredentials.java:59` | **Hardened** — `dfdc0f82` |
+| 15 | Low | Finding 8 released a worker thread only when the user removed the repository | `GitTaskRunner.java:332` | **Fixed** — `dfdc0f82` |
 
 Findings 9–13 are against the fixes for findings 1–8, from the `/code-review high` pass. Three of
 them are defects those fixes introduced; 9 and 10 were the important ones and are written up below.
@@ -247,6 +249,29 @@ Finding 11 compounded this one: because `resolveInside` trimmed the path, a file
 and `git rm "draft .md"` deleted the real one. The path is now used verbatim — only empty and
 absolute are refused.
 
+### 14 — the second lock: the token goes to https and nothing else
+
+`JGitCredentials.java:59`.
+
+Not a live vulnerability — findings 3 and 6 mean no non-https URL reaches a transport — but the class
+that actually hands the secret over had no opinion of its own about where it was going. It now
+returns `false` for any URI whose scheme is not `https`, before asking the source for anything, so a
+future code path that skips `GitRemoteUrlPolicy` still cannot put the token on the wire in the clear.
+
+JGit's "trust this certificate anyway" prompt arrives on an *https* URI, so it still reaches
+`get()` and still throws `UnsupportedCredentialItem` — the fail-closed behaviour described under
+[Checked and left alone](#checked-and-left-alone) is unchanged.
+
+### 15 — Low — idle worker threads were held for the life of the process
+
+`GitTaskRunner.java:332`.
+
+The general form of finding 8. A lane is created for every repository, clone target and initialized
+folder the app ever touches, and only an explicit removal shut one down, so
+`Executors.newSingleThreadExecutor` pinned one thread per path for the life of the process. The lane
+executor is now a `ThreadPoolExecutor` with one thread and a 30-second keep-alive and
+`allowCoreThreadTimeOut(true)`; serial ordering is unchanged (one thread, unbounded queue).
+
 ---
 
 ## How much finding 2 was worth
@@ -330,6 +355,12 @@ on it is now refused, and the refusal names where to fix it (Git tab ▸ ⋮ ▸
 rewrites the URL or moves the token into the Keystore for the user, and the token is already sitting
 in `.git/config` in cleartext. A one-time detect-and-offer-to-fix flow is a feature rather than a
 review fix. **Deferred — worth a Phase 8 item.**
+
+A tempting alternative was considered and **rejected**: accept the URL, strip the userinfo, and move
+it into the username field. For the spelling this actually matters for —
+`https://<token>@github.com/…` — the userinfo *is* the token, and the username field is stored
+unencrypted in the `git_credentials` `SharedPreferences`. That would move the token from one
+cleartext file to another rather than into the Keystore. Refusing is the safer call.
 
 **Credentials are keyed by host, not by host + port.** A token stored for `github.com` would be sent
 to `https://github.com:8443/…`. Both are https and both are the same host, so this is a
