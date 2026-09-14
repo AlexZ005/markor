@@ -451,4 +451,9 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="pref_key__git_author_name" translatable="false">pref_key__git_author_name</string>
     <string name="pref_key__git_author_email" translatable="false">pref_key__git_author_email</string>
     <string name="pref_key__git_ignore_suggested_paths" translatable="false">pref_key__git_ignore_suggested_paths</string>
+    <string name="pref_key__git_default_pull_strategy" translatable="false">pref_key__git_default_pull_strategy</string>
+    <string name="pref_key__git_fetch_on_open" translatable="false">pref_key__git_fetch_on_open</string>
+    <string name="pref_key__git_confirm_before_push" translatable="false">pref_key__git_confirm_before_push</string>
+    <string name="pref_key__git_show_untracked_files" translatable="false">pref_key__git_show_untracked_files</string>
+    <string name="pref_key__git_sync_warning_shown_paths" translatable="false">pref_key__git_sync_warning_shown_paths</string>
 </resources>

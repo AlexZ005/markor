@@ -1196,6 +1196,24 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
         return !getGitAuthorName().isEmpty() && !getGitAuthorEmail().isEmpty();
     }
 
+    // Defaults of the Git tab, one set for every repository (Settings > Git). The values of
+    // pref_key__git_default_pull_strategy are the names of GitRepoConfig.PullStrategy.
+    public String getGitDefaultPullStrategy() {
+        return getString(R.string.pref_key__git_default_pull_strategy, "FF_ONLY");
+    }
+
+    public boolean isGitFetchOnOpen() {
+        return getBool(R.string.pref_key__git_fetch_on_open, true);
+    }
+
+    public boolean isGitConfirmBeforePush() {
+        return getBool(R.string.pref_key__git_confirm_before_push, false);
+    }
+
+    public boolean isGitShowUntrackedFiles() {
+        return getBool(R.string.pref_key__git_show_untracked_files, true);
+    }
+
     // Repositories whose user was already asked whether Markor's .app/ folder should be gitignored,
     // so the suggestion is shown at most once per repository however the answer went.
     public boolean isGitIgnoreSuggested(final String repoPath) {

@@ -152,4 +152,17 @@
         <item translatable="false">5</item>
         <item translatable="false">6</item>
     </string-array>
+    <!-- Git tab (fork feature): Settings > Git > Default pull strategy.
+         The keys are the names of net.gsantner.markor.git.GitRepoConfig.PullStrategy. -->
+    <string-array name="pref_arrdisp__git_pull_strategy">
+        <item>@string/git_settings__pull_strategy_ff_only</item>
+        <item>@string/git_settings__pull_strategy_rebase</item>
+        <item>@string/git_settings__pull_strategy_merge</item>
+    </string-array>
+
+    <string-array name="pref_arrkeys__git_pull_strategy" translatable="false">
+        <item translatable="false">FF_ONLY</item>
+        <item translatable="false">REBASE</item>
+        <item translatable="false">MERGE</item>
+    </string-array>
 </resources>

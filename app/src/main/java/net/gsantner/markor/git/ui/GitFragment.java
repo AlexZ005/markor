@@ -506,7 +506,7 @@ public class GitFragment extends MarkorBaseFragment {
                 text = context.getString(R.string.git_tab__never_fetched);
                 break;
         }
-        final boolean wantsFetch = _active != null && _active.isFetchOnOpen() && _info != null && _info.hasRemote();
+        final boolean wantsFetch = isFetchOnOpenEnabled() && _info != null && _info.hasRemote();
         return wantsFetch && !isOnline(context)
                 ? text + " · " + context.getString(R.string.git_tab__offline)
                 : text;
@@ -673,7 +673,14 @@ public class GitFragment extends MarkorBaseFragment {
         _lastFetchMillis = Math.max(_lastFetchMillis, _info.getLastFetchEpochMillis());
         _status.clear();
         if (snapshot.status != null && snapshot.status.isOk()) {
-            _status.addAll(snapshot.status.getValue());
+            // Settings > Git > "Show untracked files" (task 7.1), on by default. The contract has no
+            // flag for it, so the list is filtered here; the commit dialog reads status for itself.
+            final boolean showUntracked = _appSettings == null || _appSettings.isGitShowUntrackedFiles();
+            for (final GitStatusEntry entry : snapshot.status.getValue()) {
+                if (showUntracked || entry.getKind() != GitStatusEntry.Kind.UNTRACKED) {
+                    _status.add(entry);
+                }
+            }
         }
         _aheadBehind = snapshot.aheadBehind != null && snapshot.aheadBehind.isOk()
                 ? snapshot.aheadBehind.getValue() : null;
@@ -1059,7 +1066,7 @@ public class GitFragment extends MarkorBaseFragment {
             return;
         }
         flushOpenEditors(); // task 4.2: never pull over an edit that is only in an editor
-        _flow.startPull(GitPullStrategy.FF_ONLY);
+        _flow.startPull(configuredStrategy());
     }
 
     private GitPullFlow newFlow(final File root) {
@@ -1070,16 +1077,28 @@ public class GitFragment extends MarkorBaseFragment {
         return flow;
     }
 
-    /** The repository's configured strategy, as the default button of the diverged question (its settings UI is task 7.1). */
-    private GitPullStrategy preferredStrategy() {
-        if (_active == null || _active.getPullStrategy() == null) {
-            return GitPullStrategy.REBASE;
+    /**
+     * Settings &gt; Git &gt; <i>Default pull strategy</i> (task 7.1), which is what the <i>Pull</i>
+     * button does. {@code FF_ONLY} (the default) only fast-forwards and lets {@link GitPullFlow} ask
+     * the rebase-or-merge question when the branches diverged; the other two pull that way straight
+     * away. It is one setting for every repository; {@link GitRepoConfig#getPullStrategy()} is kept
+     * in the model for a per-repository override that does not exist yet.
+     */
+    private GitPullStrategy configuredStrategy() {
+        final String name = _appSettings == null ? null : _appSettings.getGitDefaultPullStrategy();
+        if (name == null) {
+            return GitPullStrategy.FF_ONLY;
         }
         try {
-            return GitPullStrategy.valueOf(_active.getPullStrategy().name());
-        } catch (IllegalArgumentException e) {
-            return GitPullStrategy.REBASE;
+            return GitPullStrategy.valueOf(name);
+        } catch (final IllegalArgumentException e) {
+            return GitPullStrategy.FF_ONLY;
         }
+    }
+
+    /** Which button the diverged question preselects: the configured strategy, but never fast-forward. */
+    private GitPullStrategy preferredStrategy() {
+        return configuredStrategy() == GitPullStrategy.MERGE ? GitPullStrategy.MERGE : GitPullStrategy.REBASE;
     }
 
     /**
@@ -1319,6 +1338,19 @@ public class GitFragment extends MarkorBaseFragment {
             promptForRemote(this::push);
             return;
         }
+        // Settings > Git > "Confirm before push" (task 7.1), off by default.
+        final Activity activity = getActivity();
+        if (_appSettings != null && _appSettings.isGitConfirmBeforePush() && activity != null) {
+            confirmPush(activity);
+            return;
+        }
+        doPush();
+    }
+
+    private void doPush() {
+        if (_repoRoot == null) {
+            return;
+        }
         final File root = _repoRoot;
         // The contract's push returns no count, so the ahead count from before the push is used.
         final int ahead = _aheadBehind != null && _aheadBehind.hasUpstream() ? _aheadBehind.getAhead() : 0;
@@ -1335,7 +1367,8 @@ public class GitFragment extends MarkorBaseFragment {
                             showPushRejected();
                             break;
                         case AUTH_FAILED:
-                            promptForRemote(this::push);
+                            // The push itself was already confirmed; do not ask twice for one tap.
+                            promptForRemote(this::doPush);
                             break;
                         default:
                             snack(GitUiText.messageFor(requireContext(), result));
@@ -1343,6 +1376,25 @@ public class GitFragment extends MarkorBaseFragment {
                     }
                     refresh(false);
                 });
+    }
+
+    /**
+     * Asks before any commit leaves the device (task 7.1). The remote URL shown here is the one
+     * {@link GitRepoInfo} sanitised, so it never carries a username or a token.
+     */
+    private void confirmPush(final Activity activity) {
+        final String remote = _info != null && _info.getRemoteUrl() != null
+                ? _info.getRemoteUrl() : getString(R.string.git_tab__remote);
+        final int ahead = _aheadBehind != null && _aheadBehind.hasUpstream() ? _aheadBehind.getAhead() : 0;
+        final String message = ahead > 0
+                ? getResources().getQuantityString(R.plurals.git_tab__push_confirm_message, ahead, ahead, remote)
+                : getString(R.string.git_tab__push_confirm_message_unknown, remote);
+        new AlertDialog.Builder(activity, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
+                .setTitle(R.string.git_tab__push_confirm_title)
+                .setMessage(message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.git_tab__push, (d, w) -> doPush())
+                .show();
     }
 
     private void showPushRejected() {
@@ -1420,7 +1472,7 @@ public class GitFragment extends MarkorBaseFragment {
         }
         final String path = root.getAbsolutePath();
         final long now = System.currentTimeMillis();
-        if (!FETCH_THROTTLE.shouldFetch(path, _active.isFetchOnOpen(), isOnline(context), _lastFetchMillis, now)) {
+        if (!FETCH_THROTTLE.shouldFetch(path, isFetchOnOpenEnabled(), isOnline(context), _lastFetchMillis, now)) {
             return;
         }
         FETCH_THROTTLE.recordAttempt(path, now);
@@ -1436,6 +1488,11 @@ public class GitFragment extends MarkorBaseFragment {
                     _lastFetchMillis = System.currentTimeMillis();
                     render();
                 });
+    }
+
+    /** Settings &gt; Git &gt; <i>Fetch when the tab opens</i> (task 7.1), on by default. */
+    private boolean isFetchOnOpenEnabled() {
+        return _appSettings != null && _appSettings.isGitFetchOnOpen();
     }
 
     private static boolean isOnline(final Context context) {
