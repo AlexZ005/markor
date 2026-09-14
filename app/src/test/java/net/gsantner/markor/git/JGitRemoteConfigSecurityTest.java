@@ -125,6 +125,22 @@ public class JGitRemoteConfigSecurityTest {
         assertThat(_git.fetch(_cloneDir, GitCredentialsSource.NONE, GitProgress.NONE).isOk()).isTrue();
     }
 
+    @Test
+    public void aRepositoryPointingGitAtACookieFileIsRefused() throws Exception {
+        setConfig("http", null, "cookieFile", tmp.newFile("cookies.txt").getAbsolutePath());
+        final GitResult<GitAheadBehind> result = _git.fetch(_cloneDir, GitCredentialsSource.NONE, GitProgress.NONE);
+        assertThat(result.isOk()).isFalse();
+        assertThat(result.getMessage()).contains("cookieFile");
+    }
+
+    @Test
+    public void aRepositoryAskingGitToSaveCookiesIsRefused() throws Exception {
+        setConfig("http", null, "saveCookies", "true");
+        final GitResult<GitAheadBehind> result = _git.fetch(_cloneDir, GitCredentialsSource.NONE, GitProgress.NONE);
+        assertThat(result.isOk()).isFalse();
+        assertThat(result.getMessage()).contains("cookieFile");
+    }
+
     // ---------------------------------------------------------------- pushurl
 
     /**

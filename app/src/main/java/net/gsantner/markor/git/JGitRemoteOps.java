@@ -620,6 +620,13 @@ final class JGitRemoteOps {
             return GitResult.failed("This repository's configuration turns TLS certificate checking off"
                     + " (http.sslVerify = false). Remove that line from .git/config before syncing.");
         }
+        // http.cookieFile names an absolute path JGit reads cookies from and, with http.saveCookies,
+        // writes back to - as this app, so it reaches places the writer of .git/config cannot. The app
+        // never sets either key, so their presence means someone else put them there.
+        if (config.getString(HTTP_SECTION, null, COOKIE_FILE) != null || config.getBoolean(HTTP_SECTION, SAVE_COOKIES, false)) {
+            return GitResult.failed("This repository's configuration points git at a cookie file"
+                    + " (http.cookieFile in .git/config). Remove that line before syncing.");
+        }
         final List<URIish> fetchUris;
         final List<URIish> pushUris;
         try {
@@ -668,6 +675,8 @@ final class JGitRemoteOps {
 
     private static final String HTTP_SECTION = "http";
     private static final String SSL_VERIFY = "sslVerify";
+    private static final String COOKIE_FILE = "cookieFile";
+    private static final String SAVE_COOKIES = "saveCookies";
 
     private static boolean isCancelled(final GitProgress progress) {
         return progress != null && progress.isCancelled();
