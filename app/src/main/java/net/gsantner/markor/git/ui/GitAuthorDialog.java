@@ -55,6 +55,18 @@ public final class GitAuthorDialog {
      * @param onAuthor called with the identity; not called when the user cancels
      */
     public static void requireAuthor(final Activity activity, final File repoRoot, final GsCallback.a1<GitAuthor> onAuthor) {
+        requireAuthor(activity, repoRoot, onAuthor, null);
+    }
+
+    /**
+     * Same as {@link #requireAuthor(Activity, File, GsCallback.a1)}, and additionally reports when the
+     * user declines the prompt, for a caller that has to move on either way (the pull state machine).
+     *
+     * @param onCancel called when the dialog was shown and dismissed without an identity; may be {@code null}.
+     *                 Never called when no dialog was needed.
+     */
+    public static void requireAuthor(final Activity activity, final File repoRoot, final GsCallback.a1<GitAuthor> onAuthor,
+                                     final GsCallback.a0 onCancel) {
         final AppSettings settings = AppSettings.get(activity);
         if (settings.isGitAuthorSet()) {
             onAuthor.callback(new GitAuthor(settings.getGitAuthorName(), settings.getGitAuthorEmail()));
@@ -73,7 +85,7 @@ public final class GitAuthorDialog {
             settings.setGitAuthorName(author.getName());
             settings.setGitAuthorEmail(author.getEmail());
             onAuthor.callback(author);
-        });
+        }, onCancel);
     }
 
     /**
@@ -84,6 +96,16 @@ public final class GitAuthorDialog {
      * @param email value to pre-fill the e-mail field with, may be empty
      */
     public static void show(final Activity activity, final String name, final String email, final GsCallback.a1<GitAuthor> onAuthor) {
+        show(activity, name, email, onAuthor, null);
+    }
+
+    /**
+     * @param onCancel called once when the dialog goes away without an identity — Cancel, back or a tap
+     *                 outside; may be {@code null}
+     */
+    public static void show(final Activity activity, final String name, final String email, final GsCallback.a1<GitAuthor> onAuthor,
+                            final GsCallback.a0 onCancel) {
+        final boolean[] answered = {false};
         final View root = LayoutInflater.from(activity).inflate(R.layout.git__author_dialog, null);
         final EditText nameEdit = root.findViewById(R.id.git__author_dialog__name);
         final EditText emailEdit = root.findViewById(R.id.git__author_dialog__email);
@@ -121,10 +143,16 @@ public final class GitAuthorDialog {
                     emailEdit.setError(activity.getString(R.string.git_author_email_required));
                     emailEdit.requestFocus();
                 } else {
+                    answered[0] = true;
                     dialog.dismiss();
                     onAuthor.callback(new GitAuthor(enteredName, enteredEmail));
                 }
             });
+        });
+        dialog.setOnDismissListener(d -> {
+            if (!answered[0] && onCancel != null) {
+                onCancel.callback();
+            }
         });
 
         dialog.show();

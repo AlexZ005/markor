@@ -42,6 +42,7 @@ import net.gsantner.markor.activity.MarkorBaseFragment;
 import net.gsantner.markor.frontend.MarkorDialogFactory;
 import net.gsantner.markor.frontend.filebrowser.MarkorFileBrowserFactory;
 import net.gsantner.markor.git.GitAheadBehind;
+import net.gsantner.markor.git.GitAuthor;
 import net.gsantner.markor.git.GitCancelToken;
 import net.gsantner.markor.git.GitCommitInfo;
 import net.gsantner.markor.git.GitCredentialStore;
@@ -122,6 +123,13 @@ public class GitFragment extends MarkorBaseFragment {
     private boolean _refreshing;
     private Runnable _afterRefresh;
 
+    /** Task 5.3: the pull state machine of the active repository; a new one whenever the repository changes. */
+    private GitPullFlow _flow;
+    private boolean _wasResolving;
+    /** "Commit and push" chosen in the commit dialog the pull asked for: push once that pull is done. */
+    private boolean _pushAfterPull;
+    private final List<String> _renderedConflictFiles = new ArrayList<>();
+
     /** Bumped whenever the history is thrown away, so a page that arrives late is not appended. */
     private int _historyGeneration;
 
@@ -144,6 +152,11 @@ public class GitFragment extends MarkorBaseFragment {
     private Button _pullButton;
     private Button _commitButton;
     private Button _pushButton;
+    private View _conflictBanner;
+    private TextView _conflictMessage;
+    private ViewGroup _conflictFiles;
+    private Button _markResolvedButton;
+    private Button _abortButton;
     private TextView _segmentChanges;
     private TextView _segmentHistory;
     private SwipeRefreshLayout _swipe;
@@ -222,11 +235,18 @@ public class GitFragment extends MarkorBaseFragment {
         _swipe = view.findViewById(R.id.git__fragment__swipe);
         _list = view.findViewById(R.id.git__fragment__list);
         _empty = view.findViewById(R.id.git__fragment__empty);
+        _conflictBanner = view.findViewById(R.id.git__fragment__conflict_banner);
+        _conflictMessage = view.findViewById(R.id.git__fragment__conflict_message);
+        _conflictFiles = view.findViewById(R.id.git__fragment__conflict_files);
+        _markResolvedButton = view.findViewById(R.id.git__fragment__mark_resolved);
+        _abortButton = view.findViewById(R.id.git__fragment__abort);
 
         view.findViewById(R.id.git__fragment__overflow).setOnClickListener(this::showOverflow);
         _pullButton.setOnClickListener(v -> pull());
         _commitButton.setOnClickListener(v -> showCommitDialog());
         _pushButton.setOnClickListener(v -> push());
+        _markResolvedButton.setOnClickListener(v -> markResolved());
+        _abortButton.setOnClickListener(v -> confirmAbort());
         _segmentChanges.setOnClickListener(v -> showSegment(false));
         _segmentHistory.setOnClickListener(v -> showSegment(true));
         view.findViewById(R.id.git__fragment__progress_cancel).setOnClickListener(v -> cancelOperation());
@@ -370,8 +390,17 @@ public class GitFragment extends MarkorBaseFragment {
         _syncState.setText(syncLabel(context));
 
         final boolean busy = isBusy();
+        final boolean resolving = _flow != null && _flow.isResolving();
         _progressBox.setVisibility(_opLabel == null ? View.GONE : View.VISIBLE);
         _progressBar.setVisibility(_opLabel == null ? View.GONE : View.VISIBLE);
+        // Task 5.3: while a merge or rebase waits for the user, the banner takes the action row's place.
+        _actions.setVisibility(resolving ? View.GONE : View.VISIBLE);
+        _conflictBanner.setVisibility(resolving ? View.VISIBLE : View.GONE);
+        if (resolving) {
+            renderConflictBanner(context, busy);
+        } else {
+            _renderedConflictFiles.clear();
+        }
         _pullButton.setEnabled(!busy);
         _commitButton.setEnabled(!busy);
         _pushButton.setEnabled(!busy);
@@ -392,6 +421,47 @@ public class GitFragment extends MarkorBaseFragment {
         final String emptyText = emptyText(context);
         _empty.setText(emptyText == null ? "" : emptyText);
         _empty.setVisibility(emptyText == null ? View.GONE : View.VISIBLE);
+    }
+
+    /**
+     * The "Resolving conflicts" banner: what stopped, the files (one status row each, tap opens the
+     * editor), and the two buttons. Only <i>Abort</i> for a state this app did not start.
+     */
+    private void renderConflictBanner(final Context context, final boolean busy) {
+        final List<String> files = _flow.getConflictFiles();
+        final int message;
+        switch (_flow.getRepoState()) {
+            case MERGING:
+                message = files.isEmpty() ? R.string.git_tab__resolving_no_files : R.string.git_tab__resolving_merge;
+                break;
+            case REBASING:
+                message = files.isEmpty() ? R.string.git_tab__resolving_no_files : R.string.git_tab__resolving_rebase;
+                break;
+            default:
+                message = R.string.git_tab__resolving_other;
+                break;
+        }
+        _conflictMessage.setText(message);
+        if (!files.equals(_renderedConflictFiles)) {
+            _renderedConflictFiles.clear();
+            _renderedConflictFiles.addAll(files);
+            _conflictFiles.removeAllViews();
+            final LayoutInflater inflater = LayoutInflater.from(context);
+            for (final String path : files) {
+                final View row = inflater.inflate(R.layout.git__fragment__status_item, _conflictFiles, false);
+                final TextView kind = row.findViewById(R.id.git__fragment__status_item__kind);
+                kind.setText(letterOf(GitStatusEntry.Kind.CONFLICT));
+                kind.setContentDescription(context.getString(R.string.git_status_conflict));
+                ((TextView) row.findViewById(R.id.git__fragment__status_item__path)).setText(path);
+                ((TextView) row.findViewById(R.id.git__fragment__status_item__kind_name)).setText(R.string.git_tab__conflict_open_hint);
+                row.setOnClickListener(v -> openInEditor(path));
+                _conflictFiles.addView(row);
+            }
+        }
+        _markResolvedButton.setVisibility(_flow.canContinue() ? View.VISIBLE : View.GONE);
+        _markResolvedButton.setEnabled(!busy);
+        _abortButton.setEnabled(!busy);
+        _conflictBanner.setAlpha(busy ? 0.6f : 1f);
     }
 
     private String branchLabel(final Context context) {
@@ -465,7 +535,8 @@ public class GitFragment extends MarkorBaseFragment {
 
     private boolean isBusy() {
         return _opToken != null || _refreshing
-                || (_repoRoot != null && GitTaskRunner.get().isBusy(_repoRoot.getAbsolutePath()));
+                || (_repoRoot != null && GitTaskRunner.get().isBusy(_repoRoot.getAbsolutePath()))
+                || (_flow != null && _flow.isBusy());
     }
 
     private void showSegment(final boolean history) {
@@ -496,6 +567,8 @@ public class GitFragment extends MarkorBaseFragment {
         _repoRoot = _active != null ? _active.getFile() : null;
         if (_repoRoot == null || !_repoRoot.equals(previousRoot)) {
             forgetRepositoryData();
+            _flow = _repoRoot == null ? null : newFlow(_repoRoot);
+            _wasResolving = false;
         }
 
         if (_repoRoot == null) {
@@ -519,6 +592,7 @@ public class GitFragment extends MarkorBaseFragment {
         }
 
         final File root = _repoRoot;
+        flushOpenEditors(); // task 4.2: the status must see what the To-Do and QuickNote tabs show
         resetHistory();
         _refreshing = true;
         render();
@@ -602,6 +676,7 @@ public class GitFragment extends MarkorBaseFragment {
         _aheadBehind = snapshot.aheadBehind != null && snapshot.aheadBehind.isOk()
                 ? snapshot.aheadBehind.getValue() : null;
         _statusAdapter.notifyDataSetChanged();
+        syncFlowWithRepository();
 
         // Keep the registry's cheap metadata in step with the repository itself.
         if (_active != null) {
@@ -876,8 +951,20 @@ public class GitFragment extends MarkorBaseFragment {
      */
     private <T> void runOperation(final String queueKey, @StringRes final int labelRes, final Operation<T> operation,
                                   final GsCallback.a1<GitResult<T>> onResult) {
+        runOperation(queueKey, labelRes, operation, onResult, false);
+    }
+
+    /**
+     * @param deliverEverything {@code false}: a cancelled or crashed task is reported to the user here and
+     *                          {@code onResult} is not called; {@code true}: it is delivered as a CANCELLED
+     *                          or FAILED result instead, for a caller that must hear back either way
+     *                          (the pull state machine)
+     * @return {@code false} when nothing was started because another operation is still running
+     */
+    private <T> boolean runOperation(final String queueKey, @StringRes final int labelRes, final Operation<T> operation,
+                                     final GsCallback.a1<GitResult<T>> onResult, final boolean deliverEverything) {
         if (queueKey == null || _opToken != null) {
-            return;
+            return false;
         }
         _opLabel = getString(labelRes);
         _progressText.setText(_opLabel);
@@ -888,18 +975,27 @@ public class GitFragment extends MarkorBaseFragment {
                     _opLabel = null;
                     _progressText.setText("");
                     if (result.isCancelled()) {
-                        snack(getString(R.string.git_tab__cancelled));
-                        refresh(false);
+                        if (deliverEverything) {
+                            onResult.callback(GitResult.<T>cancelled());
+                        } else {
+                            snack(getString(R.string.git_tab__cancelled));
+                            refresh(false);
+                        }
                         return;
                     }
                     if (result.isError()) {
-                        snack(getString(R.string.git_operation_failed));
-                        refresh(false);
+                        if (deliverEverything) {
+                            onResult.callback(GitResult.<T>failed(getString(R.string.git_operation_failed)));
+                        } else {
+                            snack(getString(R.string.git_operation_failed));
+                            refresh(false);
+                        }
                         return;
                     }
                     onResult.callback(result.getValue());
                 });
         render();
+        return true;
     }
 
     private void onProgress(final String task, final int percent) {
@@ -920,11 +1016,18 @@ public class GitFragment extends MarkorBaseFragment {
         if (_repoRoot == null) {
             return;
         }
+        flushOpenEditors(); // task 4.2: the dialog's checklist must see what the To-Do and QuickNote tabs show
         CommitDialog.newInstance(_repoRoot, this::onCommitted)
                 .show(getChildFragmentManager(), CommitDialog.FRAGMENT_TAG);
     }
 
     private void onCommitted(final String sha, final boolean pushRequested) {
+        if (_flow != null && _flow.getState() == GitPullFlow.State.NEEDS_COMMIT) {
+            // The commit the pull asked for ("Commit first"): the pull goes on, the push waits for it.
+            _pushAfterPull = pushRequested;
+            _flow.onCommitted();
+            return;
+        }
         if (pushRequested) {
             refreshThen(this::push);
         } else {
@@ -938,64 +1041,270 @@ public class GitFragment extends MarkorBaseFragment {
         refresh(false);
     }
 
-    // ---------------------------------------------------------------- pull (ff-only for now)
+    // ---------------------------------------------------------------- pull (task 5.3)
 
+    /**
+     * Starts a fast-forward pull. Everything after that — the rebase / merge question when the branches
+     * diverged, <i>Commit first</i> for uncommitted edits, the conflict banner with <i>Mark resolved</i> and
+     * <i>Abort</i> — is {@link GitPullFlow}'s, which drives this fragment through {@link FlowHost}.
+     */
     private void pull() {
-        if (_repoRoot == null) {
+        if (_repoRoot == null || _flow == null) {
             return;
         }
         if (_info != null && !_info.hasRemote()) {
             promptForRemote(this::pull);
             return;
         }
-        final File root = _repoRoot;
-        runOperation(R.string.git_tab__pulling,
-                (token, progress) -> _git.pull(root, GitPullStrategy.FF_ONLY, credentials(), null, progress),
-                result -> {
-                    switch (result.getKind()) {
-                        case OK:
-                            _lastFetchMillis = System.currentTimeMillis();
-                            snack(getString(R.string.git_tab__pulled));
-                            break;
-                        case NON_FAST_FORWARD:
-                        case CONFLICTS:
-                            onPullNeedsResolution(result);
-                            break;
-                        case DIRTY_WORK_TREE:
-                            showMessageDialog(R.string.git_tab__dirty_title,
-                                    getString(R.string.git_tab__dirty_message, fileList(result.getFiles())));
-                            break;
-                        case AUTH_FAILED:
-                            promptForRemote(this::pull);
-                            break;
-                        default:
-                            snack(GitUiText.messageFor(requireContext(), result));
-                            break;
-                    }
-                    refresh(false);
-                });
+        flushOpenEditors(); // task 4.2: never pull over an edit that is only in an editor
+        _flow.startPull(GitPullStrategy.FF_ONLY);
+    }
+
+    private GitPullFlow newFlow(final File root) {
+        final FlowHost host = new FlowHost();
+        final GitPullFlow flow = new GitPullFlow(_git, root, credentials(), host);
+        host.flow = flow;
+        flow.setPreferredStrategy(preferredStrategy());
+        return flow;
+    }
+
+    /** The repository's configured strategy, as the default button of the diverged question (its settings UI is task 7.1). */
+    private GitPullStrategy preferredStrategy() {
+        if (_active == null || _active.getPullStrategy() == null) {
+            return GitPullStrategy.REBASE;
+        }
+        try {
+            return GitPullStrategy.valueOf(_active.getPullStrategy().name());
+        } catch (IllegalArgumentException e) {
+            return GitPullStrategy.REBASE;
+        }
     }
 
     /**
-     * Hook for the pull state machine (roadmap task 5.3), which owns rebase, merge and the conflict
-     * banner. Until that lane lands this explains the situation and offers nothing but Cancel; a
-     * conflicted pull additionally leaves the files in the Changes list, where they show as
-     * {@code !} and open in the editor.
-     *
-     * @param result a {@code NON_FAST_FORWARD} or {@code CONFLICTS} result of
-     *               {@link GitService#pull(File, GitPullStrategy, net.gsantner.markor.git.GitCredentialsSource,
-     *               net.gsantner.markor.git.GitAuthor, GitProgress)}
+     * After every refresh: tells the machine what the repository itself is in the middle of, so the
+     * banner comes back after process death and goes away when another git client finished the merge.
      */
-    protected void onPullNeedsResolution(final GitResult<GitRepoInfo> result) {
-        if (result.getKind() == GitResult.Kind.CONFLICTS) {
-            UI.showHistory = false;
-            showMessageDialog(R.string.git_tab__conflicts_title,
-                    getString(R.string.git_tab__conflicts_message, fileList(result.getFiles())));
+    private void syncFlowWithRepository() {
+        if (_flow == null || _info == null) {
             return;
         }
-        // Only Cancel: rebase and merge are task 5.3's, there is nothing to offer here yet.
-        showMessageDialog(R.string.git_tab__diverged_title,
-                getString(R.string.git_tab__diverged_message), android.R.string.cancel);
+        _flow.setPreferredStrategy(preferredStrategy());
+        final List<String> conflicts = new ArrayList<>();
+        for (final GitStatusEntry entry : _status) {
+            if (entry.getKind() == GitStatusEntry.Kind.CONFLICT) {
+                conflicts.add(entry.getPath());
+            }
+        }
+        _flow.syncWithRepository(_info.getState(), conflicts);
+    }
+
+    private void markResolved() {
+        if (_flow == null) {
+            return;
+        }
+        flushOpenEditors();
+        // null: a merge commit gets git's prepared message, a rebase keeps its commits' own messages.
+        _flow.markResolved(null);
+    }
+
+    private void confirmAbort() {
+        final Activity activity = getActivity();
+        if (activity == null || _flow == null) {
+            return;
+        }
+        final GitPullFlow flow = _flow;
+        new AlertDialog.Builder(activity, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
+                .setTitle(R.string.git_tab__abort_title)
+                .setMessage(R.string.git_tab__abort_message)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.git_tab__abort, (d, w) -> flow.abort())
+                .show();
+    }
+
+    /**
+     * Roadmap task 4.2: the To-Do and QuickNote tabs stay alive next to this one and save only on their
+     * own pause, which a tab switch does not trigger. Write them out before git looks at the tree.
+     */
+    private void flushOpenEditors() {
+        final Activity activity = getActivity();
+        if (activity instanceof MainActivity) {
+            ((MainActivity) activity).saveOpenEditors();
+        }
+    }
+
+    @StringRes
+    private static int labelFor(final GitPullFlow.Op op) {
+        switch (op) {
+            case PULL_REBASE:
+                return R.string.git_tab__rebasing;
+            case PULL_MERGE:
+                return R.string.git_tab__merging;
+            case CHECK_MARKERS:
+                return R.string.git_tab__checking_markers;
+            case CONTINUE:
+                return R.string.git_tab__finishing;
+            case ABORT:
+                return R.string.git_tab__aborting;
+            case PULL_FF_ONLY:
+            default:
+                return R.string.git_tab__pulling;
+        }
+    }
+
+    @StringRes
+    private static int labelFor(final GitPullStrategy strategy) {
+        return strategy == GitPullStrategy.MERGE ? R.string.git_tab__merge : R.string.git_tab__rebase;
+    }
+
+    /**
+     * What {@link GitPullFlow} needs from this fragment: the worker thread with header progress, the
+     * author prompt, the two questions, the commit dialog, and the messages once a step is done.
+     */
+    private final class FlowHost implements GitPullFlow.Host {
+        private GitPullFlow flow;
+
+        @Override
+        public <T> void run(final GitPullFlow.Op op, final GitPullFlow.Work<T> work, final GsCallback.a1<GitResult<T>> onResult) {
+            final boolean started = runOperation(flow.getRoot().getAbsolutePath(), labelFor(op),
+                    (token, progress) -> work.run(progress), onResult, true);
+            if (!started) {
+                onResult.callback(GitResult.<T>failed(getString(R.string.git_operation_failed)));
+            }
+        }
+
+        @Override
+        public void requireAuthor(final GsCallback.a1<GitAuthor> onAuthor) {
+            final Activity activity = getActivity();
+            if (activity == null) {
+                onAuthor.callback(null);
+                return;
+            }
+            GitAuthorDialog.requireAuthor(activity, flow.getRoot(), onAuthor::callback, () -> onAuthor.callback(null));
+        }
+
+        @Override
+        public void showDiverged(final GitPullStrategy preselected) {
+            final Activity activity = getActivity();
+            if (activity == null) {
+                flow.cancel();
+                return;
+            }
+            final GitPullStrategy other = preselected == GitPullStrategy.MERGE ? GitPullStrategy.REBASE : GitPullStrategy.MERGE;
+            final boolean[] answered = {false};
+            new AlertDialog.Builder(activity, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
+                    .setTitle(R.string.git_tab__diverged_title)
+                    .setMessage(R.string.git_tab__diverged_message)
+                    .setPositiveButton(labelFor(preselected), (d, w) -> {
+                        answered[0] = true;
+                        flow.chooseStrategy(preselected);
+                    })
+                    .setNeutralButton(labelFor(other), (d, w) -> {
+                        answered[0] = true;
+                        flow.chooseStrategy(other);
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setOnDismissListener(d -> {
+                        if (!answered[0]) {
+                            flow.cancel();
+                        }
+                    })
+                    .show();
+        }
+
+        @Override
+        public void showCommitFirst(final List<String> files) {
+            final Activity activity = getActivity();
+            if (activity == null) {
+                flow.cancel();
+                return;
+            }
+            final boolean[] answered = {false};
+            new AlertDialog.Builder(activity, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
+                    .setTitle(R.string.git_tab__dirty_title)
+                    .setMessage(getString(R.string.git_tab__dirty_message, fileList(files)))
+                    .setPositiveButton(R.string.git_tab__commit_first, (d, w) -> {
+                        answered[0] = true;
+                        flow.commitFirst();
+                    })
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setOnDismissListener(d -> {
+                        if (!answered[0]) {
+                            flow.cancel();
+                        }
+                    })
+                    .show();
+        }
+
+        @Override
+        public void openCommitDialog() {
+            showCommitDialog();
+        }
+
+        @Override
+        public void showStillConflicted(final List<String> files) {
+            showMessageDialog(R.string.git_tab__still_conflicted_title,
+                    getString(R.string.git_tab__still_conflicted_message, fileList(files)));
+        }
+
+        @Override
+        public void showConflictsRemain(final List<String> files) {
+            showMessageDialog(R.string.git_tab__conflicts_remain_title,
+                    getString(R.string.git_tab__conflicts_remain_message, fileList(files)));
+        }
+
+        @Override
+        public void onStateChanged(final GitPullFlow.State previous, final GitPullFlow.State current) {
+            if (flow != _flow) {
+                return; // a machine of a repository the user has since switched away from
+            }
+            if (flow.isResolving() && !_wasResolving) {
+                UI.showHistory = false; // the conflicted files are in the Changes list
+            }
+            _wasResolving = flow.isResolving();
+            render();
+        }
+
+        @Override
+        public void onFinished(final GitPullFlow.Op op, final GitResult<?> result) {
+            final boolean pull = op == GitPullFlow.Op.PULL_FF_ONLY || op == GitPullFlow.Op.PULL_REBASE || op == GitPullFlow.Op.PULL_MERGE;
+            switch (result.getKind()) {
+                case OK:
+                    if (pull) {
+                        _lastFetchMillis = System.currentTimeMillis();
+                        snack(getString(R.string.git_tab__pulled));
+                        if (_pushAfterPull) {
+                            _pushAfterPull = false;
+                            refreshThen(GitFragment.this::push);
+                            return;
+                        }
+                    } else if (op == GitPullFlow.Op.CONTINUE) {
+                        snack(getString(R.string.git_tab__resolved));
+                    } else if (op == GitPullFlow.Op.ABORT) {
+                        snack(getString(R.string.git_tab__aborted));
+                    }
+                    break;
+                case AUTH_FAILED:
+                    promptForRemote(GitFragment.this::pull);
+                    break;
+                case CANCELLED:
+                    snack(getString(R.string.git_tab__cancelled));
+                    break;
+                case CONFLICTS:
+                case NON_FAST_FORWARD:
+                case DIRTY_WORK_TREE:
+                    break; // the machine put up the banner or a question
+                default:
+                    final Context context = getContext();
+                    if (context != null) {
+                        snack(GitUiText.messageFor(context, result));
+                    }
+                    break;
+            }
+            if (pull) {
+                _pushAfterPull = false;
+            }
+            refresh(false);
+        }
     }
 
     // ---------------------------------------------------------------- push (task 5.4)
