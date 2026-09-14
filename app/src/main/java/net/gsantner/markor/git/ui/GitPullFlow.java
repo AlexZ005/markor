@@ -166,6 +166,11 @@ public final class GitPullFlow {
         return _state;
     }
 
+    /** @return the working-tree root this machine drives */
+    public File getRoot() {
+        return _root;
+    }
+
     /**
      * @return {@code true} while the <i>Resolving conflicts</i> banner belongs on screen: from the moment
      * a merge or rebase stopped until it was continued or aborted, including while a step runs

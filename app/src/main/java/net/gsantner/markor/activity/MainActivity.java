@@ -597,6 +597,26 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
         return _notebook;
     }
 
+    /**
+     * Writes the To-Do and QuickNote editors to disk (Git tab, roadmap task 4.2). The pager keeps those
+     * tabs STARTED while another tab is visible, so their own onPause save does not run on a tab switch;
+     * the Git tab calls this before it reads the status, commits or pulls, so that git sees what the
+     * user sees. Uses the fragments' normal save path, {@link DocumentEditAndViewFragment#saveDocument},
+     * nothing new; an editor that is not realized yet or cannot save is skipped.
+     */
+    public void saveOpenEditors() {
+        for (final DocumentEditAndViewFragment editor : new DocumentEditAndViewFragment[]{_todo, _quicknote}) {
+            if (editor == null || !editor.isAdded() || editor.getView() == null) {
+                continue;
+            }
+            try {
+                editor.saveDocument(false);
+            } catch (Exception ignored) {
+                // A tab that cannot save must not break the Git tab; its own onPause will report it.
+            }
+        }
+    }
+
     @Override
     protected void onPause() {
         super.onPause();

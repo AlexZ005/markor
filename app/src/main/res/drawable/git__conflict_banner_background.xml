@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+/*#######################################################
+ *
+ *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+ *   License of this file: Apache 2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+#########################################################*/
+-->
+<!-- The "Resolving conflicts" banner: a light wash of the accent colour with an accent border, readable on both themes. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#14F04B4B" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/accent" />
+    <corners android:radius="8dp" />
+</shape>

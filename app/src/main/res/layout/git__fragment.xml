@@ -226,6 +226,77 @@
                 android:visibility="gone"
                 tools:visibility="visible" />
 
+            <!-- Task 5.3: replaces the action row while a merge or rebase waits for conflict resolution -->
+            <LinearLayout
+                android:id="@+id/git__fragment__conflict_banner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/git__conflict_banner_background"
+                android:orientation="vertical"
+                android:paddingStart="12dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="2dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:id="@+id/git__fragment__conflict_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/git_tab__resolving_title"
+                    android:textColor="@color/accent"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/git__fragment__conflict_message"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:paddingEnd="4dp"
+                    android:textColor="@color/primary_text"
+                    android:textSize="13sp"
+                    tools:text="@string/git_tab__resolving_rebase" />
+
+                <!-- One git__fragment__status_item row per conflicted file, added in code; tap opens the editor -->
+                <LinearLayout
+                    android:id="@+id/git__fragment__conflict_files"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginStart="-12dp"
+                    android:orientation="vertical" />
+
+                <LinearLayout
+                    android:id="@+id/git__fragment__conflict_actions"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="end|center_vertical"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/git__fragment__abort"
+                        style="?android:attr/borderlessButtonStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/git_tab__abort"
+                        android:textSize="14sp" />
+
+                    <Button
+                        android:id="@+id/git__fragment__mark_resolved"
+                        style="?android:attr/borderlessButtonStyle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/git_tab__mark_resolved"
+                        android:textColor="@color/accent"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- Action row -->
             <LinearLayout
                 android:id="@+id/git__fragment__actions"
