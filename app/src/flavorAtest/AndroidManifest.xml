@@ -3,6 +3,7 @@
     - net.gsantner.markor.git.test.GitCommitDialogTestActivity: the Git tab's commit dialog (task 4.1)
     - net.gsantner.markor.git.spike.GitSpikeActivity: JGit feasibility table (task 1.2), start with
       adb shell am start -n net.gsantner.markor_test/net.gsantner.markor.git.spike.GitSpikeActivity
+    - net.gsantner.markor.git.ui.GitUiDebugActivity: opens the Git tab's read-only screens from adb (tasks 6.1/6.2)
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -17,18 +18,10 @@
             android:exported="true"
             android:label="Git spike"
             android:theme="@style/AppTheme.Unified" />
-    </application>
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <application>
-
-        <!-- Test build only: lets adb open the Git tab's read-only screens directly -->
         <activity
             android:name="net.gsantner.markor.git.ui.GitUiDebugActivity"
             android:exported="true"
             android:theme="@android:style/Theme.NoDisplay" />
-
     </application>
 
 </manifest>
