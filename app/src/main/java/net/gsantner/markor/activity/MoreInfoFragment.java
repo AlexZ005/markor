@@ -150,6 +150,9 @@ public class MoreInfoFragment extends GsPreferenceFragmentBase<AppSettings> {
         Preference pref;
         updateSummary(R.string.pref_key__more_info__project_license, getString(R.string.app_license_name));
 
+        // Hosted from Settings (the More tab became the Git tab): a "Settings" entry here would only loop back
+        setPreferenceVisible(R.string.pref_key__more_info__settings, !(getActivity() instanceof SettingsActivity));
+
         // Basic app info
         if ((pref = findPreference(R.string.pref_key__more_info__app)) != null && pref.getSummary() == null) {
             pref.setIcon(R.drawable.ic_launcher);

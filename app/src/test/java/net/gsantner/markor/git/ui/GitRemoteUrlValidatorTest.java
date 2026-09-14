@@ -1,0 +1,190 @@
+/*#######################################################
+ *
+ *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+ *   License of this file: Apache 2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+#########################################################*/
+package net.gsantner.markor.git.ui;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import net.gsantner.markor.git.GitRemoteUrlPolicy.Transport;
+import net.gsantner.markor.git.ui.GitRemoteUrlValidator.Problem;
+import net.gsantner.markor.git.ui.GitRemoteUrlValidator.Result;
+
+import org.junit.Test;
+
+public class GitRemoteUrlValidatorTest {
+
+    private static Result v(final String url) {
+        return GitRemoteUrlValidator.validate(url);
+    }
+
+    // ---------------------------------------------------------------- accepted
+
+    @Test
+    public void acceptsPlainHttpsUrl() {
+        final Result r = v("https://github.com/AlexZ005/markor");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getProblem()).isEqualTo(Problem.NONE);
+        assertThat(r.getUrl()).isEqualTo("https://github.com/AlexZ005/markor");
+        assertThat(r.getHost()).isEqualTo("github.com");
+    }
+
+    @Test
+    public void acceptsDotGitSuffix() {
+        assertThat(v("https://github.com/AlexZ005/markor.git").isValid()).isTrue();
+    }
+
+    /**
+     * Changed by the security review (task 7.5): a bare {@code user@} used to be accepted. That is the
+     * spelling GitHub's own instructions produce for a personal access token
+     * ({@code https://<token>@github.com/me/notes.git}), and accepting it wrote the token into
+     * {@code .git/config} in the notebook folder, which every app with storage permission can read.
+     */
+    @Test
+    public void refusesAnyUserinfoInTheUrl() {
+        assertThat(v("https://AlexZ005@github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("https://:ghp_secret@github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        // An @ after the authority is part of the path, not userinfo.
+        assertThat(v("https://github.com/AlexZ005/a@b.git").isValid()).isTrue();
+    }
+
+    @Test
+    public void acceptsPortAndDeepPath() {
+        final Result r = v("https://git.example.org:8443/team/group/notes.git");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getHost()).isEqualTo("git.example.org");
+    }
+
+    @Test
+    public void acceptsUppercaseSchemeAndLowercasesTheHost() {
+        final Result r = v("HTTPS://GitHub.com/AlexZ005/markor.git");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getHost()).isEqualTo("github.com");
+    }
+
+    @Test
+    public void stripsSurroundingWhitespace() {
+        final Result r = v("  \t https://codeberg.org/me/notes.git \n ");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getUrl()).isEqualTo("https://codeberg.org/me/notes.git");
+    }
+
+    // ---------------------------------------------------------------- empty
+
+    @Test
+    public void rejectsNullAndBlank() {
+        assertThat(v(null).getProblem()).isEqualTo(Problem.EMPTY);
+        assertThat(v("").getProblem()).isEqualTo(Problem.EMPTY);
+        assertThat(v("   \t\n ").getProblem()).isEqualTo(Problem.EMPTY);
+        assertThat(v(null).getUrl()).isEmpty();
+    }
+
+    // ---------------------------------------------------------------- ssh (roadmap task 8.1c)
+
+    @Test
+    public void acceptsSshScheme() {
+        final Result r = v("ssh://git@github.com/AlexZ005/markor.git");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getHost()).isEqualTo("github.com");
+        assertThat(r.getTransport()).isEqualTo(Transport.SSH);
+        assertThat(r.isSsh()).isTrue();
+
+        assertThat(v("SSH://git@github.com/AlexZ005/markor.git").isValid()).isTrue();
+        assertThat(v("git+ssh://git@github.com/x/y.git").isValid()).isTrue();
+        assertThat(v("ssh+git://git@github.com/x/y.git").isValid()).isTrue();
+        assertThat(v("ssh://git@git.example.org:2222/team/notes.git").isValid()).isTrue();
+    }
+
+    @Test
+    public void acceptsScpLikeForm() {
+        final Result r = v("git@github.com:AlexZ005/markor.git");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getHost()).isEqualTo("github.com");
+        assertThat(r.isSsh()).isTrue();
+        assertThat(v("  git@codeberg.org:me/notes  ").getUrl()).isEqualTo("git@codeberg.org:me/notes");
+        assertThat(v("  git@codeberg.org:me/notes  ").isSsh()).isTrue();
+    }
+
+    /**
+     * Android has no {@code ~/.ssh/config} and no login name, so a URL without one reaches JSch with a
+     * null user and fails with an unhelpful {@code JSchException}. It is refused here instead, with
+     * the fix in the message.
+     */
+    @Test
+    public void refusesAnSshUrlWithoutTheLoginName() {
+        assertThat(v("github.com:AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_USER_MISSING);
+        assertThat(v("ssh://github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_USER_MISSING);
+    }
+
+    /** The SSH user name is an address, not a secret — but only when it is a plain login name. */
+    @Test
+    public void refusesAPasswordOrAnOddUserNameInAnSshUrl() {
+        assertThat(v("ssh://git:hunter2@github.com/x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("git:hunter2@github.com:x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("ssh://@github.com/x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+    }
+
+    @Test
+    public void anHttpsUrlIsNotMistakenForSsh() {
+        assertThat(v("https://github.com/me/notes.git").getTransport()).isEqualTo(Transport.HTTPS);
+        assertThat(v("https://github.com/me/notes.git").isSsh()).isFalse();
+    }
+
+    // ---------------------------------------------------------------- cleartext http
+
+    @Test
+    public void rejectsPlainHttp() {
+        assertThat(v("http://github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.CLEARTEXT_HTTP);
+        assertThat(v("HTTP://192.168.1.4:3000/me/notes.git").getProblem()).isEqualTo(Problem.CLEARTEXT_HTTP);
+    }
+
+    // ---------------------------------------------------------------- other schemes
+
+    @Test
+    public void rejectsOtherSchemes() {
+        assertThat(v("git://github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.UNSUPPORTED_SCHEME);
+        assertThat(v("file:///sdcard/Documents/notes").getProblem()).isEqualTo(Problem.UNSUPPORTED_SCHEME);
+        assertThat(v("ftp://example.org/x.git").getProblem()).isEqualTo(Problem.UNSUPPORTED_SCHEME);
+    }
+
+    @Test
+    public void rejectsInputWithoutAnyScheme() {
+        assertThat(v("github.com/AlexZ005/markor").getProblem()).isEqualTo(Problem.UNSUPPORTED_SCHEME);
+        assertThat(v("/sdcard/Documents/notes").getProblem()).isEqualTo(Problem.UNSUPPORTED_SCHEME);
+        assertThat(v("./notes").getProblem()).isEqualTo(Problem.UNSUPPORTED_SCHEME);
+    }
+
+    // ---------------------------------------------------------------- password in the url
+
+    @Test
+    public void rejectsPasswordInUrl() {
+        assertThat(v("https://user:ghp_secret@github.com/x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("https://:ghp_secret@github.com/x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+    }
+
+    @Test
+    public void resultToStringNeverLeaksTheUrl() {
+        assertThat(v("https://user:ghp_secret@github.com/x/y.git").toString()).doesNotContain("ghp_secret").doesNotContain("github.com");
+    }
+
+    // ---------------------------------------------------------------- garbage
+
+    @Test
+    public void rejectsGarbage() {
+        assertThat(v("not a url").getProblem()).isEqualTo(Problem.MALFORMED);
+        assertThat(v("https://").getProblem()).isEqualTo(Problem.MALFORMED);
+        assertThat(v("https:///no/host.git").getProblem()).isEqualTo(Problem.MALFORMED);
+        assertThat(v("://github.com/x").getProblem()).isEqualTo(Problem.MALFORMED);
+        assertThat(v("https://git hub.com/x").getProblem()).isEqualTo(Problem.MALFORMED);
+    }
+
+    @Test
+    public void neverReturnsNull() {
+        for (final String s : new String[]{null, "", "x", "https://a.b/c", "ssh://a/b", "::::"}) {
+            assertThat(GitRemoteUrlValidator.validate(s)).isNotNull();
+        }
+    }
+}

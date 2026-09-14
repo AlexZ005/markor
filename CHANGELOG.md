@@ -1,3 +1,30 @@
+### Fork: AlexZ005/markor -- Git tab
+This fork adds a **Git** tab in place of the "More" tab (whose About / help / licenses screen moved
+into Settings). Upstream declined the feature in
+[gsantner/markor#2185](https://github.com/gsantner/markor/issues/2185); everything below is the fork's.
+
+- Git tab: pick a working folder that is a git repository, or initialize / clone one into an empty folder.
+- Changes list with the working-tree status; tap a file for its unified diff, long-press to edit it.
+- History with paging; tap a commit for its files and per-file diffs.
+- Commit dialog: multi-line message, a checklist of the changed files, *Commit* and *Commit and push*.
+  The author name and e-mail are asked for once and written into the repository config.
+- Pull (fast-forward, rebase or merge), fetch, push over HTTPS with a personal access token stored in
+  the Android Keystore, or over SSH with a key. Conflicts are resolved in Markor's own editor, then
+  *Mark resolved and commit*.
+- SSH: `ssh://git@host/path` and `git@host:path` remotes, RSA and ECDSA keys generated in the app or
+  imported from a file, one default key and a key per repository. The first connection to a server
+  shows its `SHA256:` fingerprint for you to compare with what your forge publishes; a server whose
+  key later changes is refused, and forgetting it is a deliberate step in Settings > Git.
+- Settings > Git: author identity, default pull strategy, fetch when the tab opens, confirm before
+  push, show untracked files. Settings > About Markor holds what the "More" tab used to show.
+- A one-time warning per repository: a file-sync app that also syncs `.git` will corrupt the repository.
+- minSdk is 26 in this fork (JGit needs a native `java.nio.file`); see `doc/adr/0001-jgit-on-android.md`.
+- New dependencies: Eclipse JGit 5.13.5 (EDL 1.0), slf4j-nop 1.7.36 (MIT), and JGit's own JavaEWAH and
+  commons-codec (Apache 2.0); for SSH, JGit's `ssh.jsch` module (EDL 1.0) and the maintained JSch fork
+  `com.github.mwiede:jsch` (BSD-3-Clause), together about 290 KB of the release APK. No NDK, still one
+  APK for every architecture. ed25519 keys are read and named but cannot sign: the library that would
+  allow it costs 2 MB, see `doc/adr/0002-ssh-on-android.md`.
+
 ### Recent changes
 - See [Discussions](https://github.com/gsantner/markor/discussions), [Issues](https://github.com/gsantner/markor/issues) and [Project news](https://github.com/gsantner/markor/blob/master/NEWS.md) to see what is going on.
 - New Updates also visible here: <https://github.com/gsantner/markor/releases>

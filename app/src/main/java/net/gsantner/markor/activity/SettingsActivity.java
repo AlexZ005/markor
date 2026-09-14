@@ -20,6 +20,7 @@ import android.widget.Toast;
 
 import androidx.annotation.StringRes;
 import androidx.appcompat.widget.Toolbar;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.preference.Preference;
@@ -31,6 +32,11 @@ import com.rarepebble.colorpicker.ColorPreference;
 import net.gsantner.markor.R;
 import net.gsantner.markor.frontend.MarkorDialogFactory;
 import net.gsantner.markor.frontend.filebrowser.MarkorFileBrowserFactory;
+import net.gsantner.markor.git.ssh.GitKnownHosts;
+import net.gsantner.markor.git.ssh.GitSshKey;
+import net.gsantner.markor.git.ssh.GitSshKeyStores;
+import net.gsantner.markor.git.ui.GitKnownHostsDialog;
+import net.gsantner.markor.git.ui.SshKeyManagerActivity;
 import net.gsantner.markor.model.AppSettings;
 import net.gsantner.markor.util.BackupUtils;
 import net.gsantner.markor.util.MarkorContextUtils;
@@ -77,28 +83,48 @@ public class SettingsActivity extends MarkorBaseActivity {
         setSupportActionBar(findViewById(R.id.toolbar));
         toolbar.setNavigationIcon(getResources().getDrawable(R.drawable.ic_arrow_back_white_24dp));
         toolbar.setNavigationOnClickListener(view -> SettingsActivity.this.onBackPressed());
-        showFragment(SettingsFragmentMaster.TAG, false);
+        if (b == null) {
+            showFragment(SettingsFragmentMaster.TAG, false);
+        } else {
+            // The FragmentManager restored the fragments (master, maybe About on top); only the title is ours
+            toolbar.setTitle(getToolbarTitle(getVisibleFragment()));
+        }
     }
 
     protected void showFragment(String tag, boolean addToBackStack) {
-        String toolbarTitle = getString(R.string.settings);
         GsPreferenceFragmentBase prefFrag = (GsPreferenceFragmentBase) getSupportFragmentManager().findFragmentByTag(tag);
         if (prefFrag == null) {
             switch (tag) {
+                case MoreInfoFragment.TAG: {
+                    prefFrag = MoreInfoFragment.newInstance();
+                    break;
+                }
                 case SettingsFragmentMaster.TAG:
                 default: {
                     prefFrag = new SettingsFragmentMaster();
-                    toolbarTitle = prefFrag.getTitleOrDefault(toolbarTitle);
                     break;
                 }
             }
         }
-        toolbar.setTitle(toolbarTitle);
+        toolbar.setTitle(getToolbarTitle(prefFrag));
         FragmentTransaction t = getSupportFragmentManager().beginTransaction();
         if (addToBackStack) {
             t.addToBackStack(tag);
         }
         t.replace(R.id.settings__activity__fragment_placeholder, prefFrag, tag).commit();
+    }
+
+    private Fragment getVisibleFragment() {
+        return getSupportFragmentManager().findFragmentById(R.id.settings__activity__fragment_placeholder);
+    }
+
+    private String getToolbarTitle(final Fragment frag) {
+        if (frag instanceof MoreInfoFragment) {
+            return getString(R.string.about_markor);
+        } else if (frag instanceof GsPreferenceFragmentBase) {
+            return ((GsPreferenceFragmentBase) frag).getTitleOrDefault(getString(R.string.settings));
+        }
+        return getString(R.string.settings);
     }
 
     @Override
@@ -132,9 +158,16 @@ public class SettingsActivity extends MarkorBaseActivity {
 
     @Override
     public void onBackPressed() {
-        GsPreferenceFragmentBase prefFrag = (GsPreferenceFragmentBase) getSupportFragmentManager().findFragmentByTag(SettingsFragmentMaster.TAG);
-        if (prefFrag != null && prefFrag.canGoBack()) {
-            prefFrag.goBack();
+        final FragmentManager fm = getSupportFragmentManager();
+        final Fragment visible = getVisibleFragment();
+        if (visible instanceof GsPreferenceFragmentBase && ((GsPreferenceFragmentBase) visible).canGoBack()) {
+            ((GsPreferenceFragmentBase) visible).goBack();
+            return;
+        }
+        if (fm.getBackStackEntryCount() > 0) {
+            // Back from a sub-screen fragment (About) to the master settings screen
+            fm.popBackStackImmediate();
+            toolbar.setTitle(getToolbarTitle(getVisibleFragment()));
             return;
         }
         super.onBackPressed();
@@ -179,6 +212,24 @@ public class SettingsActivity extends MarkorBaseActivity {
             } else {
                 updateSummary(R.string.pref_key__file_description_format, fileDescFormat);
             }
+
+            // Settings > Git: the identity the commit dialog stores, shown where it can be corrected.
+            final String gitAuthorName = _appSettings.getGitAuthorName();
+            final String gitAuthorEmail = _appSettings.getGitAuthorEmail();
+            updateSummary(R.string.pref_key__git_author_name,
+                    gitAuthorName.isEmpty() ? getString(R.string.git_settings__author_not_set) : gitAuthorName);
+            updateSummary(R.string.pref_key__git_author_email,
+                    gitAuthorEmail.isEmpty() ? getString(R.string.git_settings__author_not_set) : gitAuthorEmail);
+            final Context sshContext = getContext();
+            final GitSshKey defaultSshKey = sshContext == null ? null : GitSshKeyStores.get(sshContext).getDefault();
+            updateSummary(R.string.pref_key__git_ssh_key, defaultSshKey == null
+                    ? getString(R.string.git_settings__ssh_key_none)
+                    : defaultSshKey.getName() + "\n" + defaultSshKey.getFingerprintSha256());
+            // Settings > Git > SSH: how many servers the app has been told to trust (task 8.1c).
+            final int knownHosts = GitKnownHosts.list(GitKnownHosts.fileIn(getActivity().getFilesDir())).size();
+            updateSummary(R.string.pref_key__git_known_hosts, knownHosts == 0
+                    ? getString(R.string.git_settings__known_hosts_empty)
+                    : getResources().getQuantityString(R.plurals.git_settings__known_hosts_count, knownHosts, knownHosts));
 
             setPreferenceVisible(R.string.pref_key__is_multi_window_enabled, Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
 
@@ -250,6 +301,10 @@ public class SettingsActivity extends MarkorBaseActivity {
         public Boolean onPreferenceClicked(Preference preference, String key, int keyResId) {
             final FragmentManager fragManager = getActivity().getSupportFragmentManager();
             switch (keyResId) {
+                case R.string.pref_key__git_known_hosts: {
+                    GitKnownHostsDialog.show(getActivity(), this::doUpdatePreferences);
+                    return true;
+                }
                 case R.string.pref_key__request_external_storage: {
                     GsContextUtils.instance.requestExternalStoragePermission(getActivity());
                     return true;
@@ -375,6 +430,10 @@ public class SettingsActivity extends MarkorBaseActivity {
                     startActivity(new Intent(getActivity(), ActionButtonSettingsActivity.class).putExtra(ActionButtonSettingsActivity.EXTRA_FORMAT_KEY, keyResId));
                     break;
                 }
+                case R.string.pref_key__git_ssh_key: {
+                    SshKeyManagerActivity.launch(getActivity());
+                    break;
+                }
                 case R.string.pref_key__set_encryption_password: {
                     MarkorDialogFactory.showSetPasswordDialog(getActivity());
                     break;
@@ -386,6 +445,12 @@ public class SettingsActivity extends MarkorBaseActivity {
                 case R.string.pref_key__restore_settings: {
                     BackupUtils.showBackupSelectFromDialog(getContext(), getFragmentManager());
                     break;
+                }
+                case R.string.pref_key__settings__about: {
+                    if (getActivity() instanceof SettingsActivity) {
+                        ((SettingsActivity) getActivity()).showFragment(MoreInfoFragment.TAG, true);
+                    }
+                    return true;
                 }
             }
 

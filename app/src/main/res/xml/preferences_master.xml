@@ -650,6 +650,78 @@
         </PreferenceScreen>
     </PreferenceCategory>
 
+    <!-- Git screen (fork feature) -->
+    <PreferenceScreen
+        android:icon="@drawable/ic_git_branch_black_24dp"
+        android:summary="@string/git_settings__summary"
+        android:title="@string/git">
+
+        <PreferenceCategory android:title="@string/git_settings__identity">
+            <androidx.preference.EditTextPreference
+                android:defaultValue="@string/empty_string"
+                android:dialogTitle="@string/git_settings__author_name"
+                android:icon="@drawable/ic_person_black_24dp"
+                android:key="@string/pref_key__git_author_name"
+                android:title="@string/git_settings__author_name" />
+
+            <androidx.preference.EditTextPreference
+                android:defaultValue="@string/empty_string"
+                android:dialogTitle="@string/git_settings__author_email"
+                android:icon="@drawable/gs_email_sign_black_24dp"
+                android:key="@string/pref_key__git_author_email"
+                android:title="@string/git_settings__author_email" />
+
+            <Preference
+                android:icon="@drawable/ic_vpn_key_black_24dp"
+                android:key="@string/pref_key__git_ssh_key"
+                android:title="@string/git_settings__ssh_key" />
+        </PreferenceCategory>
+
+        <PreferenceCategory android:title="@string/git_settings__synchronisation">
+            <ListPreference
+                android:defaultValue="FF_ONLY"
+                android:dialogTitle="@string/git_settings__pull_strategy"
+                android:entries="@array/pref_arrdisp__git_pull_strategy"
+                android:entryValues="@array/pref_arrkeys__git_pull_strategy"
+                android:icon="@drawable/baseline_download_24"
+                android:key="@string/pref_key__git_default_pull_strategy"
+                android:summary="%1$s"
+                android:title="@string/git_settings__pull_strategy" />
+
+            <CheckBoxPreference
+                android:defaultValue="true"
+                android:icon="@drawable/ic_sync_black_24dp"
+                android:key="@string/pref_key__git_fetch_on_open"
+                android:summary="@string/git_settings__fetch_on_open_summary"
+                android:title="@string/git_settings__fetch_on_open" />
+
+            <CheckBoxPreference
+                android:defaultValue="false"
+                android:icon="@drawable/ic_baseline_arrow_upward_24"
+                android:key="@string/pref_key__git_confirm_before_push"
+                android:summary="@string/git_settings__confirm_before_push_summary"
+                android:title="@string/git_settings__confirm_before_push" />
+        </PreferenceCategory>
+
+        <PreferenceCategory android:title="@string/git_settings__ssh">
+            <Preference
+                android:icon="@drawable/ic_lock_outline_black_24dp"
+                android:key="@string/pref_key__git_known_hosts"
+                android:summary="@string/git_settings__known_hosts_summary"
+                android:title="@string/git_settings__known_hosts" />
+        </PreferenceCategory>
+
+        <PreferenceCategory android:title="@string/git_settings__changes_list">
+            <CheckBoxPreference
+                android:defaultValue="true"
+                android:icon="@drawable/ic_visibility_black_24dp"
+                android:key="@string/pref_key__git_show_untracked_files"
+                android:summary="@string/git_settings__show_untracked_summary"
+                android:title="@string/git_settings__show_untracked" />
+        </PreferenceCategory>
+
+    </PreferenceScreen>
+
     <!-- Most important settings -->
     <PreferenceCategory android:title="@string/essential">
         <ListPreference
@@ -668,5 +740,12 @@
             android:summary="@string/language_change_restart_description"
             android:title="@string/language" />
     </PreferenceCategory>
+
+    <!-- About / help / community / licenses (was the "More" tab before the Git tab took its place) -->
+    <Preference
+        android:icon="@drawable/ic_info_black_24dp"
+        android:key="@string/pref_key__settings__about"
+        android:summary="@string/more_info_and_help"
+        android:title="@string/about_markor" />
 
 </PreferenceScreen> <!-- Screen -->

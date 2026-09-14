@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    /*#######################################################
+    *
+    *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+    *   License: Apache 2.0
+    *     https://www.apache.org/licenses/LICENSE-2.0
+    *
+    #########################################################*/
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/git_remote_setup_dialog__root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="@dimen/activity_horizontal_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_horizontal_margin"
+    android:paddingEnd="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/git_remote_setup_dialog__repo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:lines="1"
+            android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/git_remote__url"
+            android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
+
+        <EditText
+            android:id="@+id/git_remote_setup_dialog__url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/git_remote__url_hint"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:singleLine="true"
+            android:textSize="15sp" />
+
+        <!-- One of the two below is shown at a time, decided by the URL: a token for https, a key
+             for SSH. Offering both would invite someone to fill in a token an SSH remote cannot
+             use, and an empty token must not be stored against an SSH host (task 8.1c). -->
+        <LinearLayout
+            android:id="@+id/git_remote_setup_dialog__credentials_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/git_remote__credentials_optional"
+            android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
+
+        <EditText
+            android:id="@+id/git_remote_setup_dialog__username"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/git_remote__username"
+            android:importantForAutofill="no"
+            android:inputType="textNoSuggestions"
+            android:singleLine="true"
+            android:textSize="15sp" />
+
+        <!-- saveEnabled=false: an EditText puts its text into the saved instance state, and the
+             system may write that Bundle to disk on process death. The token must never leave
+             the Keystore-backed store, so it is dropped on rotation instead (decision D4). -->
+        <EditText
+            android:id="@+id/git_remote_setup_dialog__token"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/git_remote__token"
+            android:importantForAutofill="no"
+            android:inputType="textPassword"
+            android:saveEnabled="false"
+            android:singleLine="true"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/git_remote_setup_dialog__not_persisted"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/git_remote__token_not_persisted"
+            android:textAppearance="@style/TextAppearance.AppCompat.Caption"
+            android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Shown only for an SSH remote: an SSH URL carries no token, it uses a key (task 8.1b). -->
+        <LinearLayout
+            android:id="@+id/git_remote_setup_dialog__ssh_key_block"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/git_ssh_keys__repo_key"
+                android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
+
+            <TextView
+                android:id="@+id/git_remote_setup_dialog__ssh_key"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:minHeight="40dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/git_ssh__hint"
+                android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ProgressBar
+                android:id="@+id/git_remote_setup_dialog__busy"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_marginRight="8dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/git_remote_setup_dialog__status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="@style/TextAppearance.AppCompat.Caption"
+                android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

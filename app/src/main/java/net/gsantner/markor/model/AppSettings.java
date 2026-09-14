@@ -332,7 +332,8 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
     }
 
     public boolean isShowSettingsOptionInMainToolbar() {
-        return false; // getBool(R.string.pref_key__show_settings_option_in_main_toolbar, true);
+        // Always shown: Settings used to be one tap away on the More tab, which is now the Git tab
+        return true;
     }
 
     public boolean isHighlightingHexColorEnabled() {
@@ -806,6 +807,8 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
                 return R.id.nav_todo;
             case 2:
                 return R.id.nav_quicknote;
+            case 3:
+                return R.id.nav_git;
         }
         return R.id.nav_notebook;
     }
@@ -1152,5 +1155,98 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
 
     public boolean getFormatShareAsLink() {
         return getBool(R.string.pref_key__format_share_as_link, true);
+    }
+
+    // Git tab (fork feature). The repository list is one JSON string, see GitRepoRegistryCodec.
+    public String getGitRepositoriesJson() {
+        return getString(R.string.pref_key__git_repositories, "");
+    }
+
+    public void setGitRepositoriesJson(final String json) {
+        setString(R.string.pref_key__git_repositories, json == null ? "" : json);
+    }
+
+    public String getGitActiveRepoPath() {
+        return getString(R.string.pref_key__git_active_repo_path, "");
+    }
+
+    public void setGitActiveRepoPath(final String path) {
+        setString(R.string.pref_key__git_active_repo_path, path == null ? "" : path);
+    }
+
+    // Identity used as author and committer of commits made from the Git tab. Empty until the commit
+    // dialog has asked for it once; it is also written into each repository's own .git/config.
+    public String getGitAuthorName() {
+        return getString(R.string.pref_key__git_author_name, "");
+    }
+
+    public void setGitAuthorName(final String name) {
+        setString(R.string.pref_key__git_author_name, name == null ? "" : name.trim());
+    }
+
+    public String getGitAuthorEmail() {
+        return getString(R.string.pref_key__git_author_email, "");
+    }
+
+    public void setGitAuthorEmail(final String email) {
+        setString(R.string.pref_key__git_author_email, email == null ? "" : email.trim());
+    }
+
+    public boolean isGitAuthorSet() {
+        return !getGitAuthorName().isEmpty() && !getGitAuthorEmail().isEmpty();
+    }
+
+    // Defaults of the Git tab, one set for every repository (Settings > Git). The values of
+    // pref_key__git_default_pull_strategy are the names of GitRepoConfig.PullStrategy.
+    public String getGitDefaultPullStrategy() {
+        return getString(R.string.pref_key__git_default_pull_strategy, "FF_ONLY");
+    }
+
+    public boolean isGitFetchOnOpen() {
+        return getBool(R.string.pref_key__git_fetch_on_open, true);
+    }
+
+    public boolean isGitConfirmBeforePush() {
+        return getBool(R.string.pref_key__git_confirm_before_push, false);
+    }
+
+    public boolean isGitShowUntrackedFiles() {
+        return getBool(R.string.pref_key__git_show_untracked_files, true);
+    }
+
+    // Repositories whose user was already asked whether Markor's .app/ folder should be gitignored,
+    // so the suggestion is shown at most once per repository however the answer went.
+    public boolean isGitIgnoreSuggested(final String repoPath) {
+        return repoPath != null && !repoPath.isEmpty()
+                && getStringList(R.string.pref_key__git_ignore_suggested_paths).contains(repoPath);
+    }
+
+    public void setGitIgnoreSuggested(final String repoPath) {
+        if (repoPath == null || repoPath.isEmpty()) {
+            return;
+        }
+        final ArrayList<String> paths = getStringList(R.string.pref_key__git_ignore_suggested_paths);
+        if (!paths.contains(repoPath)) {
+            paths.add(repoPath);
+            setStringList(R.string.pref_key__git_ignore_suggested_paths, paths);
+        }
+    }
+
+    // Repositories whose user already saw the "a folder sync tool corrupts .git" warning, so it is
+    // shown at most once per repository (task 7.3).
+    public boolean isGitSyncWarningShown(final String repoPath) {
+        return repoPath != null && !repoPath.isEmpty()
+                && getStringList(R.string.pref_key__git_sync_warning_shown_paths).contains(repoPath);
+    }
+
+    public void setGitSyncWarningShown(final String repoPath) {
+        if (repoPath == null || repoPath.isEmpty()) {
+            return;
+        }
+        final ArrayList<String> paths = getStringList(R.string.pref_key__git_sync_warning_shown_paths);
+        if (!paths.contains(repoPath)) {
+            paths.add(repoPath);
+            setStringList(R.string.pref_key__git_sync_warning_shown_paths, paths);
+        }
     }
 }

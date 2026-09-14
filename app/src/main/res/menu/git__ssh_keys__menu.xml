@@ -1,0 +1,18 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context="net.gsantner.markor.git.ui.SshKeyManagerActivity">
+
+    <item
+        android:id="@+id/git_ssh_keys__generate"
+        android:icon="@drawable/ic_baseline_add_24"
+        android:title="@string/git_ssh_keys__generate"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/git_ssh_keys__import"
+        android:icon="@drawable/ic_attach_file_black_24dp"
+        android:title="@string/git_ssh_keys__import"
+        app:showAsAction="ifRoom" />
+
+</menu>

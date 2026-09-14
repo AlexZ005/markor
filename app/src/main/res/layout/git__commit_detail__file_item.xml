@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="44dp"
+    android:orientation="horizontal"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
+
+    <TextView
+        android:id="@+id/git_commit_detail__item_kind"
+        android:layout_width="22dp"
+        android:layout_height="wrap_content"
+        android:textColor="@color/secondary_text"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:typeface="monospace"
+        tools:text="M" />
+
+    <TextView
+        android:id="@+id/git_commit_detail__item_path"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="middle"
+        android:singleLine="true"
+        android:textColor="@color/primary_text"
+        android:textSize="15sp"
+        tools:text="journal/2026-09-13.md" />
+
+    <TextView
+        android:id="@+id/git_commit_detail__item_added"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingStart="8dp"
+        android:paddingEnd="0dp"
+        android:textColor="@color/git_diff_add_fg"
+        android:textSize="13sp"
+        android:typeface="monospace"
+        tools:text="+12" />
+
+    <TextView
+        android:id="@+id/git_commit_detail__item_deleted"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingStart="6dp"
+        android:paddingEnd="0dp"
+        android:textColor="@color/git_diff_del_fg"
+        android:textSize="13sp"
+        android:typeface="monospace"
+        tools:text="-3" />
+
+</LinearLayout>
