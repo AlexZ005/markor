@@ -517,6 +517,8 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="folder_local">Folder local</string>
 
     <!-- Git tab (fork feature) -->
+    <string name="git">Git</string>
+    <string name="about_markor">About Markor</string>
     <string name="git_commit">Commit</string>
     <string name="git_commit_ellipsis">Commit…</string>
     <string name="git_commit_and_push">Commit and push</string>
