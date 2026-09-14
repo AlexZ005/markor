@@ -451,8 +451,4 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="pref_key__git_author_name" translatable="false">pref_key__git_author_name</string>
     <string name="pref_key__git_author_email" translatable="false">pref_key__git_author_email</string>
     <string name="pref_key__git_ignore_suggested_paths" translatable="false">pref_key__git_ignore_suggested_paths</string>
-    <!-- flavorAtest only: entry points for the Git remote dialogs (roadmap tasks 5.1/5.2) -->
-    <string name="pref_key__git_test__category" translatable="false">pref_key__git_test__category</string>
-    <string name="pref_key__git_test__clone" translatable="false">pref_key__git_test__clone</string>
-    <string name="pref_key__git_test__remote_setup" translatable="false">pref_key__git_test__remote_setup</string>
 </resources>
