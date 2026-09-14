@@ -80,6 +80,9 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
     private TextView _empty;
     private boolean _busy;
 
+    /** What {@link GitSshKeyStore#isUsable()} last said; assumed true until the check comes back. */
+    private boolean _keystoreUsable = true;
+
     /** The file being imported, held only between the file picker and the end of the import. */
     private byte[] _pendingKeyBytes;
     private String _pendingKeyName;
@@ -106,8 +109,6 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
 
         _progress = findViewById(R.id.git_ssh_keys__progress);
         _empty = findViewById(R.id.git_ssh_keys__empty);
-        findViewById(R.id.git_ssh_keys__unavailable)
-                .setVisibility(_store.isUsable() ? View.GONE : View.VISIBLE);
 
         final RecyclerView list = findViewById(R.id.git_ssh_keys__list);
         list.setLayoutManager(new LinearLayoutManager(this));
@@ -116,6 +117,26 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
         list.setAdapter(_adapter);
 
         refresh();
+        checkKeystore();
+    }
+
+    /**
+     * Asks the store whether this device can encrypt, on the worker thread: the first call loads the
+     * Android Keystore and creates the store's AES key, which takes long enough on some devices to
+     * be visible if it happened here.
+     */
+    private void checkKeystore() {
+        final GitSshKeyStore store = _store;
+        GitTaskRunner.get().submit(TASK_KEY,
+                token -> store.isUsable(),
+                () -> !isFinishing() && !isDestroyed(),
+                result -> {
+                    _keystoreUsable = !result.isSuccess() || Boolean.TRUE.equals(result.getValue());
+                    findViewById(R.id.git_ssh_keys__unavailable)
+                            .setVisibility(_keystoreUsable ? View.GONE : View.VISIBLE);
+                    _empty.setVisibility(_adapter.getItemCount() == 0 && _keystoreUsable ? View.VISIBLE : View.GONE);
+                    invalidateOptionsMenu();
+                });
     }
 
     @Override
@@ -132,7 +153,7 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
 
     @Override
     public boolean onPrepareOptionsMenu(final Menu menu) {
-        final boolean enabled = _store.isUsable() && !_busy;
+        final boolean enabled = _keystoreUsable && !_busy;
         for (int i = 0; i < menu.size(); i++) {
             menu.getItem(i).setEnabled(enabled);
         }
@@ -163,7 +184,7 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
         final List<GitSshKey> keys = new ArrayList<>(_store.list());
         final GitSshKey current = _store.getDefault();
         _adapter.setKeys(keys, current == null ? null : current.getId());
-        _empty.setVisibility(keys.isEmpty() && _store.isUsable() ? View.VISIBLE : View.GONE);
+        _empty.setVisibility(keys.isEmpty() && _keystoreUsable ? View.VISIBLE : View.GONE);
     }
 
     private void setBusy(final boolean busy) {
@@ -206,7 +227,7 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
         final GitSshKeyStore store = _store;
         GitTaskRunner.get().submit(TASK_KEY,
                 token -> store.generate(type, name),
-                () -> !isFinishing(),
+                () -> !isFinishing() && !isDestroyed(),
                 result -> {
                     setBusy(false);
                     if (!result.isSuccess()) {
@@ -245,7 +266,7 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
         setBusy(true);
         GitTaskRunner.get().submit(TASK_KEY,
                 token -> readKeyFile(file),
-                () -> !isFinishing(),
+                () -> !isFinishing() && !isDestroyed(),
                 result -> {
                     setBusy(false);
                     if (!result.isSuccess()) {
@@ -270,7 +291,10 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
         }
         setBusy(true);
         final GitSshKeyStore store = _store;
-        final byte[] bytes = _pendingKeyBytes;
+        // A copy of its own: forgetPendingKey() may zero the field from the main thread while the
+        // task is between importKey's two clones, which would store a half-wiped private key under
+        // a valid-looking entry.
+        final byte[] bytes = _pendingKeyBytes.clone();
         final String name = _pendingKeyName;
         GitTaskRunner.get().submit(TASK_KEY,
                 token -> {
@@ -278,11 +302,12 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
                         return store.importKey(name, bytes, passphrase);
                     } finally {
                         // In the task, not the callback: the callback is dropped when the screen is
-                        // gone, and the passphrase must be gone either way.
+                        // gone, and neither copy may outlive the import.
                         GitUiText.wipe(passphrase);
+                        GitUiText.wipe(bytes);
                     }
                 },
-                () -> !isFinishing(),
+                () -> !isFinishing() && !isDestroyed(),
                 result -> {
                     setBusy(false);
                     if (result.isSuccess()) {
@@ -327,7 +352,7 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
             field.setText("");
             if (passphrase.length == 0) {
                 GitUiText.wipe(passphrase);
-                field.setError(getString(R.string.git_ssh_keys__error_passphrase));
+                field.setError(getString(R.string.git_ssh_keys__passphrase_required));
                 return;
             }
             dialog.dismiss();
@@ -435,14 +460,14 @@ public class SshKeyManagerActivity extends MarkorBaseActivity {
         final GitSshKeyStore store = _store;
         GitTaskRunner.get().submit(TASK_KEY,
                 token -> store.delete(key.getId()),
-                () -> !isFinishing(),
+                () -> !isFinishing() && !isDestroyed(),
                 result -> {
                     setBusy(false);
                     refresh();
                     if (result.isSuccess() && Boolean.TRUE.equals(result.getValue())) {
                         Toast.makeText(this, R.string.git_ssh_keys__deleted, Toast.LENGTH_SHORT).show();
                     } else {
-                        showError(result.isSuccess() ? null : result.getError());
+                        Toast.makeText(this, R.string.git_ssh_keys__delete_failed, Toast.LENGTH_LONG).show();
                     }
                 });
     }

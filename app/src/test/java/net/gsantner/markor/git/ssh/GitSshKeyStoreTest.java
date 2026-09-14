@@ -100,7 +100,7 @@ public class GitSshKeyStoreTest {
         assertThatThrownBy(() -> _store.generate(GitSshKey.Type.ED25519, "Modern"))
                 .isInstanceOf(GitSshKeyException.class)
                 .extracting(e -> ((GitSshKeyException) e).getReason())
-                .isEqualTo(GitSshKeyException.Reason.INVALID_REQUEST);
+                .isEqualTo(GitSshKeyException.Reason.UNSUPPORTED_TYPE);
         assertThat(_store.list()).isEmpty();
     }
 
@@ -359,6 +359,69 @@ public class GitSshKeyStoreTest {
         assertThat(reopened.getDefault()).isNull();
     }
 
+    // ---------------------------------------------------------------- a failing index write
+
+    @Test
+    public void aDefaultThatCouldNotBeWrittenIsNotAdoptedInMemory() throws Exception {
+        final GitSshKey first = _store.generate(GitSshKey.Type.ECDSA, "First");
+        final GitSshKey second = _store.generate(GitSshKey.Type.ECDSA, "Second");
+        blockIndexWrites();
+
+        assertThat(_store.setDefault(second.getId())).isFalse();
+
+        // Reporting failure and still using the new key would authenticate with a key the user was
+        // just told was refused, and a restart would flip it back.
+        assertThat(_store.getDefault()).isEqualTo(first);
+        assertThat(GitSshKeyStoreTestFixtures.storeIn(_root, _vault).getDefault()).isEqualTo(first);
+    }
+
+    @Test
+    public void aKeyWhoseRemovalCouldNotBeWrittenIsKeptWithItsFile() throws Exception {
+        final GitSshKey key = _store.generate(GitSshKey.Type.ECDSA, "Stays");
+        blockIndexWrites();
+
+        assertThat(_store.delete(key.getId())).isFalse();
+
+        // The index still lists it, so the key file must still be there: the other order would
+        // leave an entry the UI can neither show nor delete, with getDefault() pointing at it.
+        assertThat(_store.list()).containsExactly(key);
+        assertThat(_store.getDefault()).isEqualTo(key);
+        assertThat(new File(new File(_root, key.getId()), "key.enc")).isFile();
+        final byte[] priv = _store.loadPrivateKey(key.getId());
+        try {
+            assertThat(GitSshTestKeys.asString(priv)).startsWith("-----BEGIN OPENSSH PRIVATE KEY-----");
+        } finally {
+            Arrays.fill(priv, (byte) 0);
+        }
+    }
+
+    @Test
+    public void theIndexIsNeverAbsentWhileItIsReplaced() throws Exception {
+        _store.generate(GitSshKey.Type.ECDSA, "First");
+        final File index = new File(_root, "index.json");
+        final long before = index.length();
+
+        _store.generate(GitSshKey.Type.ECDSA, "Second");
+
+        // Written to a temp file and renamed over the index, never unlinked first: a process death
+        // in between would otherwise orphan every key file, which alone carry no names or default.
+        assertThat(index).isFile();
+        assertThat(index.length()).isGreaterThan(before);
+        assertThat(new File(_root, "index.json.tmp")).doesNotExist();
+    }
+
+    @Test
+    public void aDefaultWhoseKeyFileIsGoneDoesNotStopTheNextKeyBecomingDefault() throws Exception {
+        final GitSshKey ghost = _store.generate(GitSshKey.Type.ECDSA, "Ghost");
+        assertThat(new File(new File(_root, ghost.getId()), "key.enc").delete()).isTrue();
+
+        final GitSshKeyStore reopened = GitSshKeyStoreTestFixtures.storeIn(_root, _vault);
+        assertThat(reopened.getDefault()).isNull();
+        final GitSshKey fresh = reopened.generate(GitSshKey.Type.ECDSA, "Fresh");
+
+        assertThat(reopened.getDefault()).isEqualTo(fresh);
+    }
+
     // ---------------------------------------------------------------- refusals
 
     @Test
@@ -420,6 +483,14 @@ public class GitSshKeyStoreTest {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * Makes every later index write fail: the store writes {@code index.json.tmp} first, and a
+     * directory of that name cannot be opened as a file.
+     */
+    private void blockIndexWrites() {
+        assertThat(new File(_root, "index.json.tmp").mkdir()).isTrue();
+    }
 
     /** Edits index.json directly, to produce an entry no API of the store would create. */
     private void rewriteIndex(final String from, final String to) throws Exception {

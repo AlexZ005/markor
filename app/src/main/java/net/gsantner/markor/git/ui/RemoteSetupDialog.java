@@ -93,6 +93,8 @@ public class RemoteSetupDialog extends DialogFragment {
     private GitSshKeyStore _sshKeyStore;
     /** The repository's stored selection: an id, or null for "the app default". */
     private String _sshKeyId;
+    /** Whether the SSH key row is currently shown, so the label is only rebuilt when that changes. */
+    private boolean _sshRowShown;
 
     private EditText _urlEdit;
     private EditText _usernameEdit;
@@ -173,10 +175,10 @@ public class RemoteSetupDialog extends DialogFragment {
 
             @Override
             public void afterTextChanged(final Editable s) {
-                updateSshKeyRow();
+                updateSshKeyRow(false);
             }
         });
-        updateSshKeyRow();
+        updateSshKeyRow(true);
 
         final AlertDialog dialog = new AlertDialog.Builder(context, R.style.Theme_AppCompat_DayNight_Dialog_Rounded)
                 .setTitle(R.string.git_remote_setup__title)
@@ -205,17 +207,24 @@ public class RemoteSetupDialog extends DialogFragment {
         return GitRemoteUrlValidator.validate(url).getProblem() == GitRemoteUrlValidator.Problem.SSH_NOT_SUPPORTED;
     }
 
-    private void updateSshKeyRow() {
+    /**
+     * @param reread {@code true} when the label has to be built again (the row just appeared, or the
+     *               selection changed). The label reads the key store, so a keystroke that does not
+     *               change the SSH verdict must not trigger it.
+     */
+    private void updateSshKeyRow(final boolean reread) {
         final Context context = getContext();
         if (context == null || _sshKeyBlock == null) {
             return;
         }
         final boolean ssh = isSshUrl(GitUiText.trimmedText(_urlEdit));
-        _sshKeyBlock.setVisibility(ssh ? View.VISIBLE : View.GONE);
-        if (!ssh) {
-            return;
+        if (ssh != _sshRowShown) {
+            _sshRowShown = ssh;
+            _sshKeyBlock.setVisibility(ssh ? View.VISIBLE : View.GONE);
         }
-        _sshKeyText.setText(sshKeyLabel(context));
+        if (ssh && (reread || _sshKeyText.getText().length() == 0)) {
+            _sshKeyText.setText(sshKeyLabel(context));
+        }
     }
 
     private String sshKeyLabel(final Context context) {
@@ -271,12 +280,18 @@ public class RemoteSetupDialog extends DialogFragment {
 
     /** @param keyId a stored key id, or null for "use the app default" */
     private void selectSshKey(final String keyId) {
-        _sshKeyId = keyId;
+        final Context context = getContext();
         final GitRepoConfig repo = _registry.get(getRepoPath());
-        if (repo != null) {
-            _registry.update(repo.setSshKeyId(keyId));
+        if (repo == null || !_registry.update(repo.setSshKeyId(keyId))) {
+            // Nothing was stored, so nothing may be shown as stored: the repository is not (or no
+            // longer) registered.
+            if (context != null) {
+                showStatus(context.getString(R.string.git_error__repo_unknown));
+            }
+            return;
         }
-        updateSshKeyRow();
+        _sshKeyId = keyId;
+        updateSshKeyRow(true);
     }
 
     // ---------------------------------------------------------------- test connection
