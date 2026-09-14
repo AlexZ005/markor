@@ -21,6 +21,11 @@ import java.util.Locale;
  * Holds no secret itself: the token is copied into JGit's {@link CredentialItem.Password} and the
  * local copy is zeroed at once. Stateless apart from the source reference, so one instance per call
  * is cheap and nothing lingers after the call.
+ * <p>
+ * The token is handed out for {@code https} URIs only (roadmap task 7.5). {@link GitRemoteUrlPolicy}
+ * already refuses every other scheme before a transport is opened; this is the second lock, at the
+ * point the secret would actually leave, so that a code path which ever gets past the first one still
+ * cannot put the token on the wire in the clear.
  */
 final class JGitCredentials extends CredentialsProvider {
     private final GitCredentialsSource _source;
@@ -55,8 +60,16 @@ final class JGitCredentials extends CredentialsProvider {
         return true;
     }
 
+    /** @return {@code true} when the URI is one the token may be sent to: https and nothing else */
+    static boolean isTlsUri(final URIish uri) {
+        return uri != null && uri.getScheme() != null && "https".equals(uri.getScheme().toLowerCase(Locale.ROOT));
+    }
+
     @Override
     public boolean get(final URIish uri, final CredentialItem... items) throws UnsupportedCredentialItem {
+        if (!isTlsUri(uri)) {
+            return false;
+        }
         final String host = hostOf(uri);
         for (final CredentialItem item : items) {
             if (item instanceof CredentialItem.Username) {

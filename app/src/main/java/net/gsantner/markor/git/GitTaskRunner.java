@@ -18,9 +18,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -329,14 +331,27 @@ public class GitTaskRunner {
         }
     }
 
-    private static ExecutorService defaultSerialExecutor(final String repoPath) {
+    /** An idle worker thread ends after this long; the lane starts a new one for its next task. */
+    static final long WORKER_IDLE_SECONDS = 30;
+
+    /**
+     * At most one thread, tasks in submission order, and the thread is released once the repository
+     * has been quiet for {@link #WORKER_IDLE_SECONDS}. A lane is created for every repository, clone
+     * target and initialized folder the app ever touches, and only a repository the user explicitly
+     * removes is shut down, so a plain single-thread executor pinned one thread per path for the life
+     * of the process.
+     */
+    static ExecutorService defaultSerialExecutor(final String repoPath) {
         final ThreadFactory factory = runnable -> {
             final Thread thread = new Thread(runnable, "markor-git-" + shortName(repoPath));
             thread.setDaemon(true);
             thread.setPriority(Thread.NORM_PRIORITY - 1);
             return thread;
         };
-        return Executors.newSingleThreadExecutor(factory);
+        final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, WORKER_IDLE_SECONDS, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(), factory);
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
     }
 
     private static String shortName(final String repoPath) {
