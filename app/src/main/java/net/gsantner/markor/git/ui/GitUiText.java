@@ -13,6 +13,7 @@ import android.widget.EditText;
 
 import net.gsantner.markor.R;
 import net.gsantner.markor.git.GitCredentialStore;
+import net.gsantner.markor.git.GitRemoteUrlPolicy;
 import net.gsantner.markor.git.GitResult;
 import net.gsantner.markor.git.ssh.GitSshKeyException;
 
@@ -27,7 +28,12 @@ import java.util.Arrays;
  * <p>
  * Only the two kinds the roadmap names get their own wording ({@code AUTH_FAILED} and
  * {@code NETWORK}); everything else falls back to the result's own credential-free message, so a new
- * result kind in the core layer still produces something readable here.
+ * result kind in the core layer still produces something readable here — {@code HOST_KEY_MISMATCH}
+ * included, whose message already names the host and where to forget its key.
+ * <p>
+ * {@code AUTH_FAILED} is the one place where the transport changes the wording: telling someone whose
+ * remote is {@code git@github.com:…} to check their access token sends them to a field their
+ * repository does not use. Callers that know which transport the operation ran on say so.
  */
 public final class GitUiText {
 
@@ -39,12 +45,23 @@ public final class GitUiText {
      * @return a message for a toast or an inline error; never contains a token or a URL with userinfo
      */
     public static String messageFor(final Context context, final GitResult<?> result) {
+        return messageFor(context, result, null);
+    }
+
+    /**
+     * @param transport what the operation ran over, or {@code null} when the caller does not know;
+     *                  only {@code AUTH_FAILED} reads differently for the two
+     * @return a message for a toast or an inline error; never contains a token or a URL with userinfo
+     */
+    public static String messageFor(final Context context, final GitResult<?> result,
+                                    final GitRemoteUrlPolicy.Transport transport) {
         if (result == null) {
             return context.getString(R.string.git_error__generic);
         }
         switch (result.getKind()) {
             case AUTH_FAILED:
-                return context.getString(R.string.git_error__auth_failed);
+                return context.getString(transport == GitRemoteUrlPolicy.Transport.SSH
+                        ? R.string.git_error__auth_failed_ssh : R.string.git_error__auth_failed);
             case NETWORK:
                 return context.getString(R.string.git_error__network);
             default:

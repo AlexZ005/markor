@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+    /*#######################################################
+    *
+    *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+    *   License: Apache 2.0
+    *     https://www.apache.org/licenses/LICENSE-2.0
+    *
+    #########################################################*/
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="@dimen/activity_horizontal_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_horizontal_margin"
+    android:paddingEnd="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/git_passphrase_dialog__key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body2" />
+
+        <TextView
+            android:id="@+id/git_passphrase_dialog__fingerprint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/git_passphrase_dialog__passphrase"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/git_ssh__passphrase"
+            android:importantForAutofill="no"
+            android:inputType="textPassword"
+            android:singleLine="true"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/git_passphrase_dialog__wrong"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/git_ssh__passphrase_wrong"
+            android:textAppearance="@style/TextAppearance.AppCompat.Caption"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</ScrollView>
