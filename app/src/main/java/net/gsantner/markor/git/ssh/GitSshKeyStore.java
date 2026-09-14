@@ -184,6 +184,10 @@ public final class GitSshKeyStore {
      * none. The first usable key created becomes the default by itself; after that it only changes
      * through {@link #setDefault(String)}, so no deletion can silently move the app to another
      * identity.
+     * <p>
+     * It reports what the index says, which an index written by another build could make a key with
+     * {@link GitSshKey#canAuthenticate()} {@code == false}; callers that are about to connect check
+     * that, {@link #setDefault(String)} never selects such a key, and the UI explains it.
      */
     public synchronized GitSshKey getDefault() {
         final List<GitSshKey> keys = list();
