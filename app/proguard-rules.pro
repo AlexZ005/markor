@@ -26,6 +26,11 @@
 # @SerializedName pins the JSON names, keeping the members keeps reflection working.
 -keepclassmembers class net.gsantner.markor.git.GitRepoConfig { <fields>; }
 -keepclassmembers enum net.gsantner.markor.git.GitRepoConfig$PullStrategy { *; }
+# Same for the SSH key index (task 8.1b): GitSshKey is the entry Gson reads and writes, and the
+# index envelope holds the list plus the default key id.
+-keepclassmembers class net.gsantner.markor.git.ssh.GitSshKey { <fields>; }
+-keepclassmembers enum net.gsantner.markor.git.ssh.GitSshKey$Type { *; }
+-keepclassmembers class net.gsantner.markor.git.ssh.GitSshKeyIndexCodec$Envelope { <fields>; }
 
 # ---- Git tab: JGit 5.13 (doc/adr/0001-jgit-on-android.md)
 # JGit loads its error/progress messages by reflection: TranslationBundle.load() iterates getClass().getFields() of
