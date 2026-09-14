@@ -103,8 +103,9 @@ public class JGitServiceContractTest {
         assertThat(JGitRepos.sanitizeUrl("https://user@host.tld/a/b.git")).isEqualTo("https://host.tld/a/b.git");
         assertThat(JGitRepos.sanitizeUrl("https://host.tld/a/b.git")).isEqualTo("https://host.tld/a/b.git");
         assertThat(JGitRepos.sanitizeUrl("file:///tmp/x")).isEqualTo("file:///tmp/x");
-        assertThat(JGitRepos.hasPassword("https://user:pw@host.tld/a.git")).isTrue();
-        assertThat(JGitRepos.hasPassword("https://user@host.tld/a.git")).isFalse();
+        assertThat(JGitRepos.hasUserinfo("https://user:pw@host.tld/a.git")).isTrue();
+        // A bare user@ is userinfo too: it is how a personal access token is usually pasted.
+        assertThat(JGitRepos.hasUserinfo("https://user@host.tld/a.git")).isTrue();
         assertThat(JGitErrors.sanitize("fetch https://u:p@h/x.git: not authorized")).isEqualTo("fetch https://h/x.git: not authorized");
     }
 }
