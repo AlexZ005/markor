@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Shared, package-private JGit plumbing used by the facade and both ops classes: locate and open
@@ -197,35 +198,56 @@ final class JGitRepos {
     }
 
     /**
+     * {@code scheme://<userinfo>@} at the start of a URL. The userinfo may hold no {@code /}, so an
+     * {@code @} inside the path (a branch or file name) is not mistaken for one.
+     */
+    private static final Pattern SCHEME_USERINFO = Pattern.compile("(?i)^([a-z][a-z0-9+.-]*://)[^/@]*@");
+
+    /**
      * Removes username and password from a URL so it can be displayed or logged.
      * Non-URL strings (e.g. scp-like {@code host:path}) are returned unchanged except for a
      * best-effort removal of a {@code user:pass@} part.
+     * <p>
+     * The regular expression runs first and {@link URIish} only afterwards, because URIish does not
+     * see userinfo in every spelling: for {@code https://:token@host/x} it reports no user, no
+     * password and no host at all, which would leave the token in the string it is asked to clean.
      */
     static String sanitizeUrl(final String url) {
         if (url == null) {
             return null;
         }
+        final String stripped = SCHEME_USERINFO.matcher(url).replaceFirst("$1");
+        if (!stripped.equals(url)) {
+            return stripped;
+        }
         try {
+            // No scheme, so the scp-like form git@host:path is all that is left to clean.
             final URIish uri = new URIish(url);
             if (uri.getUser() == null && uri.getPass() == null) {
                 return url;
             }
             return uri.setUser(null).setPass(null).toString();
         } catch (URISyntaxException e) {
-            return url.replaceFirst("(?i)^([a-z][a-z0-9+.-]*://)[^/@]*@", "$1");
+            return url;
         }
     }
 
     /**
-     * @return {@code true} when the URL carries a password. Such URLs are refused so the secret never
-     * lands in {@code .git/config}.
+     * @return {@code true} when the URL carries any userinfo: {@code user:pass@}, a bare {@code user@}
+     * (which is how a GitHub personal access token is usually pasted) or the {@code :pass@} form that
+     * URIish does not recognise at all. Such URLs are refused so the secret never lands in
+     * {@code .git/config}, where it would be world-readable on shared storage.
      */
-    static boolean hasPassword(final String url) {
+    static boolean hasUserinfo(final String url) {
         if (url == null) {
             return false;
         }
+        if (SCHEME_USERINFO.matcher(url).find()) {
+            return true;
+        }
         try {
-            return new URIish(url).getPass() != null;
+            final URIish uri = new URIish(url);
+            return uri.getUser() != null || uri.getPass() != null;
         } catch (URISyntaxException e) {
             return false;
         }

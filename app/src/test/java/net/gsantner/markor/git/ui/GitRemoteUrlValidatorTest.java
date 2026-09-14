@@ -36,11 +36,18 @@ public class GitRemoteUrlValidatorTest {
         assertThat(v("https://github.com/AlexZ005/markor.git").isValid()).isTrue();
     }
 
+    /**
+     * Changed by the security review (task 7.5): a bare {@code user@} used to be accepted. That is the
+     * spelling GitHub's own instructions produce for a personal access token
+     * ({@code https://<token>@github.com/me/notes.git}), and accepting it wrote the token into
+     * {@code .git/config} in the notebook folder, which every app with storage permission can read.
+     */
     @Test
-    public void acceptsUsernameInUrlWithoutPassword() {
-        final Result r = v("https://AlexZ005@github.com/AlexZ005/markor.git");
-        assertThat(r.isValid()).isTrue();
-        assertThat(r.getHost()).isEqualTo("github.com");
+    public void refusesAnyUserinfoInTheUrl() {
+        assertThat(v("https://AlexZ005@github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("https://:ghp_secret@github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        // An @ after the authority is part of the path, not userinfo.
+        assertThat(v("https://github.com/AlexZ005/a@b.git").isValid()).isTrue();
     }
 
     @Test

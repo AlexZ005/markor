@@ -115,6 +115,10 @@ final class JGitRemoteOps {
             if (remote == null) {
                 return GitResult.failed(NO_REMOTE);
             }
+            final GitResult<GitAheadBehind> refused = remoteRefusal(repo, remote);
+            if (refused != null) {
+                return refused;
+            }
             doFetch(git, remote, credentials, progress);
             if (isCancelled(progress)) {
                 return GitResult.cancelled();
@@ -205,6 +209,10 @@ final class JGitRemoteOps {
             final String remote = JGitRepos.remoteFor(repo);
             if (remote == null) {
                 return GitResult.failed(NO_REMOTE);
+            }
+            final GitResult<GitRepoInfo> refused = remoteRefusal(repo, remote);
+            if (refused != null) {
+                return refused;
             }
             applyAuthor(repo, author);
             doFetch(git, remote, credentials, progress);
@@ -320,6 +328,10 @@ final class JGitRemoteOps {
             }
             if (repo.resolve(Constants.HEAD) == null) {
                 return GitResult.failed("Nothing to push: the repository has no commits yet");
+            }
+            final GitResult<Void> refused = remoteRefusal(repo, remote);
+            if (refused != null) {
+                return refused;
             }
             final BranchConfig branchConfig = new BranchConfig(repo.getConfig(), branch);
             final String remoteBranchRef = branchConfig.getMerge() != null && remote.equals(branchConfig.getRemote())
@@ -573,11 +585,9 @@ final class JGitRemoteOps {
     // ---------------------------------------------------------------- helpers
 
     private static GitResult<URIish> parseUrl(final String url) {
-        if (url == null || url.trim().isEmpty()) {
-            return GitResult.failed("The URL is empty");
-        }
-        if (JGitRepos.hasPassword(url)) {
-            return GitResult.failed("Remove the password from the URL and enter the token in the credentials field instead");
+        final String refusal = GitRemoteUrlPolicy.refusalFor(url);
+        if (refusal != null) {
+            return GitResult.failed(refusal);
         }
         try {
             return GitResult.ok(new URIish(url.trim()));
@@ -585,6 +595,46 @@ final class JGitRemoteOps {
             return GitResult.failed("Invalid URL: " + JGitRepos.sanitizeUrl(url.trim()));
         }
     }
+
+    /**
+     * Checks what {@code .git/config} says before a fetch, pull or push hands credentials to it. The
+     * dialogs validate what the user types, but the URL used here comes off disk and the repository
+     * sits on shared storage, so it is re-checked every time: see {@link GitRemoteUrlPolicy}.
+     * <p>
+     * {@code http.sslVerify = false} is refused in the same breath. JGit honours that key from the
+     * repository configuration and would then accept any certificate, which turns https back into an
+     * open channel for the token.
+     *
+     * @return {@code null} when the operation may proceed, otherwise the failed result to return
+     */
+    private static <T> GitResult<T> remoteRefusal(final Repository repo, final String remote) {
+        final StoredConfig config = repo.getConfig();
+        if (!config.getBoolean(HTTP_SECTION, SSL_VERIFY, true)) {
+            return GitResult.failed("This repository's configuration turns TLS certificate checking off"
+                    + " (http.sslVerify = false). Remove that line from .git/config before syncing.");
+        }
+        final List<URIish> uris = new ArrayList<>();
+        try {
+            final RemoteConfig remoteConfig = new RemoteConfig(config, remote);
+            uris.addAll(remoteConfig.getURIs());
+            uris.addAll(remoteConfig.getPushURIs());
+        } catch (URISyntaxException e) {
+            return GitResult.failed("The remote URL cannot be parsed");
+        }
+        if (uris.isEmpty()) {
+            return GitResult.failed(NO_REMOTE);
+        }
+        for (final URIish uri : uris) {
+            final String refusal = GitRemoteUrlPolicy.refusalFor(uri.toString());
+            if (refusal != null) {
+                return GitResult.failed(refusal);
+            }
+        }
+        return null;
+    }
+
+    private static final String HTTP_SECTION = "http";
+    private static final String SSL_VERIFY = "sslVerify";
 
     private static boolean isCancelled(final GitProgress progress) {
         return progress != null && progress.isCancelled();

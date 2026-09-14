@@ -37,7 +37,10 @@ public final class GitRemoteUrlValidator {
         CLEARTEXT_HTTP,
         /** Any scheme other than https, or no scheme at all. */
         UNSUPPORTED_SCHEME,
-        /** {@code https://user:password@host/...}; the password must not be stored in the repository. */
+        /**
+         * {@code https://user:password@host/...}, {@code https://token@host/...} or
+         * {@code https://:token@host/...}: credentials in the URL end up in {@code .git/config}.
+         */
         CONTAINS_PASSWORD,
         /** https, but not parsable or without a host. */
         MALFORMED
@@ -116,7 +119,7 @@ public final class GitRemoteUrlValidator {
             return new Result(Problem.UNSUPPORTED_SCHEME, url, null);
         }
 
-        if (hasUserinfoPassword(url.substring(schemeEnd + 3))) {
+        if (hasUserinfo(url.substring(schemeEnd + 3))) {
             return new Result(Problem.CONTAINS_PASSWORD, url, null);
         }
 
@@ -138,13 +141,18 @@ public final class GitRemoteUrlValidator {
     }
 
     /**
-     * {@code URIish} silently drops an empty user name, so {@code https://:token@host/x} would parse as
-     * a plain URL. The authority is therefore inspected directly: everything before the last {@code @}
-     * is userinfo, and a colon in it means a password.
+     * Any userinfo at all is refused, not just a {@code user:password@} pair. The form GitHub's own
+     * instructions produce is {@code https://<token>@github.com/me/notes.git}, where the token is the
+     * <i>user name</i>; accepting it would write the token into {@code .git/config}, which sits in the
+     * notebook folder on shared storage. The username belongs in the field below the URL, from where
+     * it goes to the Keystore.
+     * <p>
+     * The authority is inspected directly rather than through {@code URIish}, which reports neither a
+     * user nor a host for {@code https://:token@host/x} and would let that spelling through.
      *
      * @param afterScheme the URL without {@code https://}
      */
-    private static boolean hasUserinfoPassword(final String afterScheme) {
+    private static boolean hasUserinfo(final String afterScheme) {
         int end = afterScheme.length();
         for (int i = 0; i < afterScheme.length(); i++) {
             final char c = afterScheme.charAt(i);
@@ -153,9 +161,7 @@ public final class GitRemoteUrlValidator {
                 break;
             }
         }
-        final String authority = afterScheme.substring(0, end);
-        final int at = authority.lastIndexOf('@');
-        return at >= 0 && authority.lastIndexOf(':', at) >= 0;
+        return afterScheme.lastIndexOf('@', end - 1) >= 0;
     }
 
     private static boolean containsWhitespace(final String s) {

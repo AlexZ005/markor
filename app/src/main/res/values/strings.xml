@@ -583,7 +583,7 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_error__url_ssh">SSH remotes are not supported yet. Use an https:// URL.</string>
     <string name="git_error__url_http">Plain http:// is not allowed because the token would be sent unencrypted. Use https://.</string>
     <string name="git_error__url_scheme">Only https:// remotes are supported</string>
-    <string name="git_error__url_password">Remove the password from the URL and enter the token below</string>
+    <string name="git_error__url_password">Remove the user name and token from the URL — they would be stored in plain text. Enter them in the fields below instead.</string>
     <string name="git_error__url_malformed">This is not a valid URL</string>
     <string name="git_error__username_required">Enter the username that belongs to the token</string>
     <string name="git_error__token_required">Enter the personal access token</string>
