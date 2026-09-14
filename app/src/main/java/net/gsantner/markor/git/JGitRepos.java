@@ -211,10 +211,20 @@ final class JGitRepos {
      * The regular expression runs first and {@link URIish} only afterwards, because URIish does not
      * see userinfo in every spelling: for {@code https://:token@host/x} it reports no user, no
      * password and no host at all, which would leave the token in the string it is asked to clean.
+     * <p>
+     * <b>An SSH remote keeps its login name.</b> {@code git@github.com:me/notes.git} is the whole
+     * address, the {@code git@} is not a secret, and a header reading {@code github.com:me/notes.git}
+     * would show the user something they cannot paste back and cannot compare with what their forge
+     * displays. A password behind that name is still removed, and so is a user name that is not a
+     * plain login name — if it does not look like one, it is treated as something that should not be
+     * shown (roadmap task 8.1c).
      */
     static String sanitizeUrl(final String url) {
         if (url == null) {
             return null;
+        }
+        if (GitRemoteUrlPolicy.looksLikeSsh(url)) {
+            return sanitizeSshUrl(url);
         }
         final String stripped = SCHEME_USERINFO.matcher(url).replaceFirst("$1");
         if (!stripped.equals(url)) {
@@ -230,6 +240,28 @@ final class JGitRepos {
         } catch (URISyntaxException e) {
             return url;
         }
+    }
+
+    /**
+     * An SSH remote's user name is part of the address, not a credential: kept when it is a plain
+     * login name, dropped together with everything else in the userinfo when it is not.
+     */
+    private static String sanitizeSshUrl(final String url) {
+        final boolean scpLike = !url.contains("://");
+        final String authority = GitRemoteUrlPolicy.sshAuthority(url, scpLike);
+        if (authority == null) {
+            return url;
+        }
+        final int at = authority.lastIndexOf('@');
+        if (at < 0) {
+            return url;
+        }
+        if (GitRemoteUrlPolicy.isPlainSshUser(authority.substring(0, at))) {
+            return url;
+        }
+        // user:pass@host, or something stranger: remove the userinfo, keep the rest of the address.
+        final int offset = url.indexOf(authority);
+        return url.substring(0, offset) + authority.substring(at + 1) + url.substring(offset + authority.length());
     }
 
     /**

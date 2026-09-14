@@ -9,6 +9,7 @@ package net.gsantner.markor.git.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import net.gsantner.markor.git.GitRemoteUrlPolicy.Transport;
 import net.gsantner.markor.git.ui.GitRemoteUrlValidator.Problem;
 import net.gsantner.markor.git.ui.GitRemoteUrlValidator.Result;
 
@@ -81,21 +82,55 @@ public class GitRemoteUrlValidatorTest {
         assertThat(v(null).getUrl()).isEmpty();
     }
 
-    // ---------------------------------------------------------------- ssh
+    // ---------------------------------------------------------------- ssh (roadmap task 8.1c)
 
     @Test
-    public void rejectsSshScheme() {
-        assertThat(v("ssh://git@github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
-        assertThat(v("SSH://git@github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
-        assertThat(v("git+ssh://git@github.com/x/y.git").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
-        assertThat(v("ssh+git://git@github.com/x/y.git").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
+    public void acceptsSshScheme() {
+        final Result r = v("ssh://git@github.com/AlexZ005/markor.git");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getHost()).isEqualTo("github.com");
+        assertThat(r.getTransport()).isEqualTo(Transport.SSH);
+        assertThat(r.isSsh()).isTrue();
+
+        assertThat(v("SSH://git@github.com/AlexZ005/markor.git").isValid()).isTrue();
+        assertThat(v("git+ssh://git@github.com/x/y.git").isValid()).isTrue();
+        assertThat(v("ssh+git://git@github.com/x/y.git").isValid()).isTrue();
+        assertThat(v("ssh://git@git.example.org:2222/team/notes.git").isValid()).isTrue();
     }
 
     @Test
-    public void rejectsScpLikeForm() {
-        assertThat(v("git@github.com:AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
-        assertThat(v("github.com:AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
-        assertThat(v("  git@codeberg.org:me/notes  ").getProblem()).isEqualTo(Problem.SSH_NOT_SUPPORTED);
+    public void acceptsScpLikeForm() {
+        final Result r = v("git@github.com:AlexZ005/markor.git");
+        assertThat(r.isValid()).isTrue();
+        assertThat(r.getHost()).isEqualTo("github.com");
+        assertThat(r.isSsh()).isTrue();
+        assertThat(v("  git@codeberg.org:me/notes  ").getUrl()).isEqualTo("git@codeberg.org:me/notes");
+        assertThat(v("  git@codeberg.org:me/notes  ").isSsh()).isTrue();
+    }
+
+    /**
+     * Android has no {@code ~/.ssh/config} and no login name, so a URL without one reaches JSch with a
+     * null user and fails with an unhelpful {@code JSchException}. It is refused here instead, with
+     * the fix in the message.
+     */
+    @Test
+    public void refusesAnSshUrlWithoutTheLoginName() {
+        assertThat(v("github.com:AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_USER_MISSING);
+        assertThat(v("ssh://github.com/AlexZ005/markor.git").getProblem()).isEqualTo(Problem.SSH_USER_MISSING);
+    }
+
+    /** The SSH user name is an address, not a secret — but only when it is a plain login name. */
+    @Test
+    public void refusesAPasswordOrAnOddUserNameInAnSshUrl() {
+        assertThat(v("ssh://git:hunter2@github.com/x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("git:hunter2@github.com:x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+        assertThat(v("ssh://@github.com/x/y.git").getProblem()).isEqualTo(Problem.CONTAINS_PASSWORD);
+    }
+
+    @Test
+    public void anHttpsUrlIsNotMistakenForSsh() {
+        assertThat(v("https://github.com/me/notes.git").getTransport()).isEqualTo(Transport.HTTPS);
+        assertThat(v("https://github.com/me/notes.git").isSsh()).isFalse();
     }
 
     // ---------------------------------------------------------------- cleartext http
