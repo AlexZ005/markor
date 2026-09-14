@@ -418,3 +418,77 @@ pass, run over the first three fix commits, contributed findings 9–13.
 * `GitRemoteUrlValidatorTest.acceptsUsernameInUrlWithoutPassword` asserted finding 1's behaviour and
   is replaced by `refusesAnyUserinfoInTheUrl`; `JGitServiceContractTest` follows `hasPassword` →
   `hasUserinfo`.
+
+## Addendum, 2026-09-14 — what allowing SSH changed (task 8.1c)
+
+This review left two rules that only knew about https: `GitRemoteUrlPolicy` allowed `https` and
+`file` and nothing else, and `JGitCredentials.isTlsUri` handed the token to `https` and nothing else.
+Task 8.1c had to let SSH through. It does so by **extending the policy deliberately**, not by adding
+a scheme to an allowlist, and the difference is worth writing down because it is where the next
+mistake would be made.
+
+### The token and the key never swap transports
+
+`GitRemoteUrlPolicy.decide` no longer answers yes-or-no. It answers with a `Transport` — `HTTPS`,
+`SSH` or `LOCAL` — and that answer is what decides which credential an operation may use:
+
+* the token still only reaches `https`. `JGitCredentials.isTlsUri` is unchanged, and
+  `GitRemoteUrlSecurityTest.theAccessTokenIsNeverOfferedToAnSshRemote` asserts it for both SSH
+  spellings and for `git+ssh`/`ssh+git`.
+* the SSH key only reaches `SSH`. `JGitSsh.forOperation` resolves nothing at all — no key is
+  decrypted, no passphrase is asked for — unless the policy said `SSH`, and the callback it installs
+  configures an `SshTransport` and nothing else.
+
+### The userinfo rules are opposite for the two, on purpose
+
+For https, **any** userinfo is refused: the form GitHub's instructions produce is
+`https://<token>@github.com/…`, where the userinfo *is* the secret (findings 1 and 2). For SSH the
+userinfo is the login name the server needs, it is not a secret, and there is nowhere else to put it
+— so exactly one plain login name is required (`[A-Za-z0-9._-]{1,64}`), a password behind it is
+refused, and a *missing* name is refused too: Android has no `~/.ssh/config` to default it from.
+`JGitRepos.sanitizeUrl` was changed to match — it keeps an SSH login name, because a header reading
+`github.com:me/notes.git` shows the user an address they cannot paste back, and it still strips a
+password behind that name.
+
+### A key is not keyed to a host, so `.git/config` needed a second gate
+
+Finding 3 established that `.git/config` is untrusted input and that every URL read off disk is
+re-checked at the point of use. For https that is enough, because the token is stored per host: a
+remote rewritten to another host simply gets no token. **An SSH key has no such scope.** It is one
+identity the user has, and it would be offered to whatever host `.git/config` names. Trust on first
+use does not stop that — the attacker's host is new, so the user is asked to confirm a fingerprint
+they have no way to judge, in the middle of a sync they asked for.
+
+`GitSshRemoteTrust` is the answer: a key is offered only when the app's own record for that
+repository — `GitRepoConfig.remoteUrl`, in app-private storage — already says this repository is that
+SSH remote. The two spellings of one remote count as the same remote; nothing else is normalised
+away, not the path, not the port, not the login name.
+
+**A defect this found on the device.** `GitFragment.refresh()` mirrored the repository's remote URL
+from `.git/config` into the registry as "cheap metadata". That made the record follow the very file
+it was supposed to be weighed against: rewriting the remote to `git@attacker.example:…` and opening
+the Git tab was enough to have it adopted, after which the key was offered to the new host. Found by
+doing exactly that on the api26 emulator, fixed by not mirroring an SSH URL at all — an SSH remote
+becomes the record only when the user saves it in the remote dialog or clones it. An https URL is
+still mirrored, where the scheme policy and the host-keyed token are the protection and the copy is
+only a convenience.
+
+### Host keys
+
+`known_hosts` lives in app-private storage, unhashed so the Git tab can show what is trusted. A first
+contact is offered to the user with the host, the key type and the `SHA256:…` fingerprint in the
+spelling every forge publishes. A **mismatch is never offered** — no "trust it anyway" button, because
+someone who is being intercepted would press whatever ends the error — and the stored key is left
+untouched. The way back is Settings ▸ Git ▸ Known SSH servers, where forgetting an entry is a
+deliberate act with its own confirmation.
+
+### Things deliberately not done
+
+* The passphrase of an imported key is kept in memory for the app session once it has been checked
+  against the key, the same bargain as the token (which is in fact kept longer, in the Keystore).
+  Without it, "fetch when the tab opens" would put a dialog in front of every sync. It is never
+  written anywhere and is dropped if it stops fitting the key.
+* `GitSshUiPrompts` blocks the git worker thread while a dialog is up. A connection cannot be paused,
+  so the alternative would be asking about hosts and keys before every operation that might not need
+  them. It refuses rather than deadlocking if called on the main thread, and gives up after two
+  minutes so a dead activity cannot hold a repository's thread.
