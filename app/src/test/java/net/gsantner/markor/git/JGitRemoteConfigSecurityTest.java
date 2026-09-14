@@ -119,6 +119,32 @@ public class JGitRemoteConfigSecurityTest {
         }
     }
 
+    /**
+     * {@code HttpConfig.init} reads the bare {@code http.sslVerify} first and then overwrites it from
+     * the {@code [http "<url>"]} subsection whose URL matches the remote, so a check that only looked
+     * at the bare key was bypassable.
+     */
+    @Test
+    public void aPerUrlSubsectionThatDisablesCertificateCheckingIsRefusedToo() throws Exception {
+        setConfig("http", "https://github.com/", "sslVerify", "false");
+
+        for (final GitResult<?> result : new GitResult<?>[]{
+                _git.fetch(_cloneDir, GitCredentialsSource.NONE, GitProgress.NONE),
+                _git.pull(_cloneDir, GitPullStrategy.FF_ONLY, GitCredentialsSource.NONE, ALICE, GitProgress.NONE),
+                _git.push(_cloneDir, GitCredentialsSource.NONE, GitProgress.NONE)}) {
+            assertThat(result.isOk()).isFalse();
+            assertThat(result.getMessage()).contains("sslVerify");
+        }
+    }
+
+    @Test
+    public void aPerUrlSubsectionCookieFileIsRefusedToo() throws Exception {
+        setConfig("http", "https://github.com/", "cookieFile", "/data/data/net.gsantner.markor/cookies");
+        final GitResult<GitAheadBehind> result = _git.fetch(_cloneDir, GitCredentialsSource.NONE, GitProgress.NONE);
+        assertThat(result.isOk()).isFalse();
+        assertThat(result.getMessage()).contains("cookieFile");
+    }
+
     @Test
     public void anExplicitSslVerifyTrueIsFine() throws Exception {
         setConfig("http", null, "sslVerify", "true");

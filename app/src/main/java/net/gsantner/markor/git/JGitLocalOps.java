@@ -399,7 +399,12 @@ final class JGitLocalOps {
             final List<String> removed = new ArrayList<>();
             for (final String path : wanted) {
                 final File file = GitPaths.resolveInside(workTree, path);
-                (file != null && file.exists() ? existing : removed).add(path);
+                if (file == null) {
+                    // Outside the working folder: skipped, never routed into the "removed" branch,
+                    // which runs git rm and would delete the file it does resolve to.
+                    continue;
+                }
+                (file.exists() ? existing : removed).add(path);
             }
             if (!existing.isEmpty()) {
                 final AddCommand add = git.add();
@@ -427,6 +432,9 @@ final class JGitLocalOps {
             final RevCommit commit = git.commit()
                     .setMessage(message)
                     .setAllowEmpty(false)
+                    // .git/hooks sits in the notebook folder on shared storage, so it is no more
+                    // trusted than .git/config; this app has no use for hooks.
+                    .setNoVerify(true)
                     .setAuthor(author.getName(), author.getEmail())
                     .setCommitter(author.getName(), author.getEmail())
                     .call();
