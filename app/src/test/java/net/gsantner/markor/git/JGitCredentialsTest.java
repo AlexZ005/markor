@@ -78,10 +78,44 @@ public class JGitCredentialsTest {
     @Test
     public void refusesInteractiveItems() throws Exception {
         final JGitCredentials cp = JGitCredentials.forSource(GitCredentialsSource.NONE);
-        final CredentialItem.YesNoType yesNo = new CredentialItem.YesNoType("Accept host key?");
+        final CredentialItem.YesNoType yesNo = new CredentialItem.YesNoType("Trust this certificate?");
         assertThat(cp.supports(yesNo)).isFalse();
-        assertThatThrownBy(() -> cp.get(new URIish("ssh://h/x"), yesNo)).isInstanceOf(UnsupportedCredentialItem.class);
+        // On https, where JGit's "trust this certificate anyway" prompt actually appears, the item is
+        // still refused loudly, so the app cannot be talked into accepting a bad certificate.
+        assertThatThrownBy(() -> cp.get(new URIish("https://h/x"), yesNo)).isInstanceOf(UnsupportedCredentialItem.class);
         assertThat(JGitCredentials.hostOf(new URIish("file:///tmp/x"))).isEmpty();
         assertThat(JGitCredentials.hostOf(null)).isEmpty();
+    }
+
+    /**
+     * The second lock of roadmap task 7.5: {@code GitRemoteUrlPolicy} refuses a non-https remote
+     * before a transport is opened, and this refuses to hand the token over even if something ever
+     * gets past it. Asserted with a source that does hold a secret, so a {@code false} can only come
+     * from the scheme.
+     */
+    @Test
+    public void handsTheTokenToHttpsAndToNothingElse() throws Exception {
+        final GitCredentialsSource source = new GitCredentialsSource() {
+            @Override
+            public String getUsername(final String host) {
+                return "alice";
+            }
+
+            @Override
+            public char[] getSecret(final String host) {
+                return "ghp_secret".toCharArray();
+            }
+        };
+        final JGitCredentials cp = JGitCredentials.forSource(source);
+
+        assertThat(cp.get(new URIish("https://h/x"), new CredentialItem.Username(), new CredentialItem.Password())).isTrue();
+        for (final String url : new String[]{"http://h/x", "ftp://h/x", "git://h/x", "ssh://git@h/x", "file:///tmp/x"}) {
+            final CredentialItem.Password password = new CredentialItem.Password();
+            assertThat(cp.get(new URIish(url), new CredentialItem.Username(), password)).as(url).isFalse();
+            assertThat(password.getValue()).as(url).isNull();
+        }
+        // isTlsUri lower-cases defensively, but URIish will not parse an upper-case scheme at all,
+        // so the only thing worth asserting here is that a missing URI is refused.
+        assertThat(JGitCredentials.isTlsUri(null)).isFalse();
     }
 }
