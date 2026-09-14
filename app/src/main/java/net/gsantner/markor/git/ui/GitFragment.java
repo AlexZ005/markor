@@ -48,6 +48,7 @@ import net.gsantner.markor.git.GitCancelToken;
 import net.gsantner.markor.git.GitCommitInfo;
 import net.gsantner.markor.git.GitCredentialStore;
 import net.gsantner.markor.git.GitCredentialsSource;
+import net.gsantner.markor.git.GitRemoteUrlPolicy;
 import net.gsantner.markor.git.GitFetchThrottle;
 import net.gsantner.markor.git.GitHistoryPager;
 import net.gsantner.markor.git.GitPaths;
@@ -1360,7 +1361,7 @@ public class GitFragment extends MarkorBaseFragment {
                 default:
                     final Context context = getContext();
                     if (context != null) {
-                        snack(GitUiText.messageFor(context, result));
+                        snack(GitUiText.messageFor(context, result, remoteTransport()));
                     }
                     break;
             }
@@ -1414,7 +1415,7 @@ public class GitFragment extends MarkorBaseFragment {
                             promptForRemote(this::doPush);
                             break;
                         default:
-                            snack(GitUiText.messageFor(requireContext(), result));
+                            snack(GitUiText.messageFor(requireContext(), result, remoteTransport()));
                             break;
                     }
                     refresh(false);
@@ -1496,7 +1497,7 @@ public class GitFragment extends MarkorBaseFragment {
                     } else if (result.getKind() == GitResult.Kind.AUTH_FAILED) {
                         promptForRemote(this::fetch);
                     } else {
-                        snack(GitUiText.messageFor(requireContext(), result));
+                        snack(GitUiText.messageFor(requireContext(), result, remoteTransport()));
                     }
                     refresh(false);
                 });
@@ -1549,9 +1550,35 @@ public class GitFragment extends MarkorBaseFragment {
         return capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
     }
 
+    /**
+     * What the active repository's remote runs over, so an authentication failure is answered with
+     * the right advice: "check the token" for https, "the key is not authorised" for SSH.
+     *
+     * @return {@code null} when there is no remote, or its URL is one the policy refuses
+     */
+    private GitRemoteUrlPolicy.Transport remoteTransport() {
+        final String url = _info == null ? null : _info.getRemoteUrl();
+        return url == null ? null : GitRemoteUrlPolicy.decide(url).getTransport();
+    }
+
+    /**
+     * What every remote operation of this tab authenticates with: the stored token for an https
+     * remote, the repository's SSH key for an SSH one. Which of the two is used is decided from the
+     * URL inside the git layer, not here.
+     * <p>
+     * The SSH side may have to ask something while the operation runs — a fingerprint on the first
+     * contact with a server, the passphrase of an imported key — so it is given a prompt that shows a
+     * dialog from this fragment's activity and blocks the git worker thread until it is answered.
+     * The activity is looked up when the question comes up rather than captured now, so a rotation
+     * in the middle of a fetch does not leave the dialog without a window.
+     */
     private GitCredentialsSource credentials() {
         final Context context = getContext();
-        return context == null ? GitCredentialsSource.NONE : GitCredentialStore.get(context).asSource();
+        if (context == null) {
+            return GitCredentialsSource.NONE;
+        }
+        return GitCredentials.of(GitCredentialStore.get(context).asSource(),
+                GitSshAuth.forRegistry(context, new GitSshUiPrompts(this::getActivity)));
     }
 
     // ---------------------------------------------------------------- overflow menu

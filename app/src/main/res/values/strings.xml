@@ -578,6 +578,7 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_clone__done">Cloned into %1$s</string>
     <string name="git_error__generic">Git operation failed</string>
     <string name="git_error__auth_failed">Check username and token</string>
+    <string name="git_error__auth_failed_ssh">The key is not authorised for this repository. Add its public half to the server, or choose another key.</string>
     <string name="git_error__network">Cannot reach host</string>
     <string name="git_error__url_empty">Enter a remote URL</string>
     <string name="git_error__url_ssh_user">SSH addresses need the user name the server logs you in as, for example git@github.com:me/notes.git</string>
@@ -706,6 +707,41 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_settings__confirm_before_push">Confirm before push</string>
     <string name="git_settings__confirm_before_push_summary">Ask once before sending commits to the remote</string>
     <string name="git_settings__changes_list">Changes list</string>
+    <!-- SSH transport (task 8.1c) -->
+    <string name="git_settings__ssh">SSH</string>
+    <string name="git_settings__known_hosts">Known SSH servers</string>
+    <string name="git_settings__known_hosts_summary">Servers whose identity you confirmed. Forget one to be asked again.</string>
+    <string name="git_settings__known_hosts_empty">No SSH server has been confirmed yet</string>
+    <plurals name="git_settings__known_hosts_count">
+        <item quantity="one">%1$d server confirmed</item>
+        <item quantity="other">%1$d servers confirmed</item>
+    </plurals>
+    <string name="git_known_hosts__forget_title">Forget this server?</string>
+    <string name="git_known_hosts__forget_message">The next connection to %1$s asks you to confirm its fingerprint again. Do this if the server was rebuilt or moved — not because a sync failed.</string>
+    <string name="git_known_hosts__forget">Forget</string>
+    <string name="git_known_hosts__forgotten">%1$s forgotten</string>
+    <string name="git_host_key__title">Trust this server?</string>
+    <string name="git_host_key__explanation">This app has not connected to this server before. Check that the fingerprint is the one the server\'s owner publishes; on GitHub, GitLab and Codeberg it is on their SSH key fingerprints page.</string>
+    <string name="git_host_key__host">Server</string>
+    <string name="git_host_key__fingerprint">Fingerprint</string>
+    <string name="git_host_key__compare">If it does not match, cancel: something is between this device and the server.</string>
+    <string name="git_host_key__trust">Trust</string>
+    <string name="git_ssh__passphrase_title">Key passphrase</string>
+    <string name="git_ssh__passphrase">Passphrase</string>
+    <string name="git_ssh__passphrase_wrong">That passphrase does not open this key</string>
+    <string name="git_ssh__key">SSH key</string>
+    <string name="git_ssh__key_default">App default key (%1$s)</string>
+    <string name="git_ssh__key_default_none">App default key — none set up yet</string>
+    <string name="git_ssh__key_choose">Choose\u2026</string>
+    <string name="git_ssh__key_none">No SSH key yet. Generate one here, then add its public half to the server.</string>
+    <string name="git_ssh__key_generate">Generate a new RSA key\u2026</string>
+    <string name="git_ssh__key_generating">Generating a 4096-bit RSA key\u2026</string>
+    <string name="git_ssh__key_generated">Key created. Copy its public half to the server.</string>
+    <string name="git_ssh__key_generate_failed">The key could not be created on this device</string>
+    <string name="git_ssh__key_use_default">Use the app default key</string>
+    <string name="git_ssh__key_copy_public">Copy public key</string>
+    <string name="git_ssh__key_copied">Public key copied</string>
+    <string name="git_ssh__hint">An SSH remote authenticates with a key, not with a token.</string>
     <string name="git_settings__show_untracked">Show untracked files</string>
     <string name="git_settings__show_untracked_summary">List files git does not track yet, so they can be committed from the tab</string>
     <!-- Settings > Git: SSH keys (task 8.1b) -->
