@@ -78,6 +78,9 @@ public class GitRepoConfig {
     @SerializedName("fetchOnOpen")
     private boolean _fetchOnOpen = DEFAULT_FETCH_ON_OPEN;
 
+    @SerializedName("sshKeyId")
+    private String _sshKeyId = null;
+
     @SerializedName("addedEpoch")
     private long _addedEpoch = 0L;
 
@@ -99,6 +102,7 @@ public class GitRepoConfig {
             _defaultBranch = other._defaultBranch;
             _pullStrategy = other._pullStrategy;
             _fetchOnOpen = other._fetchOnOpen;
+            _sshKeyId = other._sshKeyId;
             _addedEpoch = other._addedEpoch;
         }
     }
@@ -185,6 +189,24 @@ public class GitRepoConfig {
     }
 
     /**
+     * Which SSH key this repository authenticates with, as
+     * {@link net.gsantner.markor.git.ssh.GitSshKey#getId()}, or null for "the app's default key"
+     * (roadmap task 8.1b). Only meaningful for an SSH remote;
+     * {@link net.gsantner.markor.git.ssh.GitSshKeySelection} is what turns it into a key.
+     */
+    public String getSshKeyId() {
+        return _sshKeyId;
+    }
+
+    /**
+     * @param sshKeyId id of a stored key, or null to fall back to the app's default key
+     */
+    public GitRepoConfig setSshKeyId(final String sshKeyId) {
+        _sshKeyId = emptyToNull(sshKeyId);
+        return this;
+    }
+
+    /**
      * When the repository was added to the app, in milliseconds since epoch. 0 if unknown.
      */
     public long getAddedEpoch() {
@@ -212,6 +234,7 @@ public class GitRepoConfig {
         _displayName = _displayName == null ? "" : _displayName.trim();
         _remoteUrl = emptyToNull(_remoteUrl);
         _defaultBranch = emptyToNull(_defaultBranch);
+        _sshKeyId = emptyToNull(_sshKeyId);
         if (_pullStrategy == null) {
             _pullStrategy = DEFAULT_PULL_STRATEGY;
         }
