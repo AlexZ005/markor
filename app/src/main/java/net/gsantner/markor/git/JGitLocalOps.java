@@ -99,6 +99,7 @@ final class JGitLocalOps {
         }
         progress.onTaskBegin(TASK_INIT, GitProgress.UNKNOWN);
         try (Git git = Git.init().setDirectory(dir).call()) {
+            JGitRepos.disableAutoGc(git.getRepository());
             return GitResult.ok(JGitRepos.describe(git.getRepository()));
         } catch (Exception e) {
             return JGitErrors.map(e, progress, dir);

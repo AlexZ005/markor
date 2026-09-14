@@ -79,8 +79,35 @@ final class JGitRepos {
             repo.close();
             throw new RepositoryNotFoundException(anyPath);
         }
+        disableAutoGc(repo);
         return repo;
     }
+
+    /**
+     * Turns JGit's automatic garbage collection off in the repository config ({@code gc.auto = 0},
+     * {@code gc.autoPackLimit = 0}). JGit runs it after fetch, merge and rebase once a repository has
+     * more than 6700 loose objects, and its PID lock uses {@code java.lang.management.ManagementFactory},
+     * which does not exist on Android ({@code NoClassDefFoundError}). Called for every repository this
+     * app opens, initialises or clones; writes the config only when a value is not already 0, and never
+     * fails the caller: a repository whose config cannot be written is still usable.
+     */
+    static void disableAutoGc(final Repository repo) {
+        try {
+            final StoredConfig config = repo.getConfig();
+            if (config.getInt(GC_SECTION, GC_AUTO, -1) == 0 && config.getInt(GC_SECTION, GC_AUTO_PACK_LIMIT, -1) == 0) {
+                return;
+            }
+            config.setInt(GC_SECTION, null, GC_AUTO, 0);
+            config.setInt(GC_SECTION, null, GC_AUTO_PACK_LIMIT, 0);
+            config.save();
+        } catch (IOException | RuntimeException ignored) {
+            // read-only or corrupt config: the operation itself decides whether that matters
+        }
+    }
+
+    private static final String GC_SECTION = "gc";
+    private static final String GC_AUTO = "auto";
+    private static final String GC_AUTO_PACK_LIMIT = "autopacklimit";
 
     /** Builds the header snapshot. Does not walk the working tree. */
     static GitRepoInfo describe(final Repository repo) throws IOException {

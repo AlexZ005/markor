@@ -104,6 +104,7 @@ final class JGitRemoteOps {
                 .setProgressMonitor(new JGitProgressMonitor(progress))
                 .setTimeout(TIMEOUT_SECONDS)
                 .call()) {
+            JGitRepos.disableAutoGc(git.getRepository());
             return GitResult.ok(JGitRepos.describe(git.getRepository()));
         } catch (Exception e) {
             if (!existedBefore) {
