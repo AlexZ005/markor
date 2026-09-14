@@ -685,4 +685,28 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_tab__conflicts_remain_message">The next step has conflicts too. Resolve these files and mark them resolved again:\n\n%1$s</string>
     <string name="git_tab__resolved">Conflicts resolved, pull finished</string>
     <string name="git_tab__aborted">Pull aborted; your files are back to how they were</string>
+    <!-- Settings > Git (task 7.1) -->
+    <string name="git_settings__summary">Identity, pull strategy, fetch and push behaviour</string>
+    <string name="git_settings__identity">Identity</string>
+    <string name="git_settings__author_name">Author name</string>
+    <string name="git_settings__author_email">Author e-mail</string>
+    <string name="git_settings__author_not_set">Asked for before the first commit</string>
+    <string name="git_settings__synchronisation">Synchronisation</string>
+    <string name="git_settings__pull_strategy">Default pull strategy</string>
+    <string name="git_settings__pull_strategy_ff_only">Fast-forward only (ask when diverged)</string>
+    <string name="git_settings__pull_strategy_rebase">Rebase my commits on top</string>
+    <string name="git_settings__pull_strategy_merge">Merge</string>
+    <string name="git_settings__fetch_on_open">Fetch when the tab opens</string>
+    <string name="git_settings__fetch_on_open_summary">Ask the remote what is new, at most once every 10 minutes and only when online. Nothing is changed on this device.</string>
+    <string name="git_settings__confirm_before_push">Confirm before push</string>
+    <string name="git_settings__confirm_before_push_summary">Ask once before sending commits to the remote</string>
+    <string name="git_settings__changes_list">Changes list</string>
+    <string name="git_settings__show_untracked">Show untracked files</string>
+    <string name="git_settings__show_untracked_summary">List files git does not track yet, so they can be committed from the tab</string>
+    <string name="git_tab__push_confirm_title">Push to the remote?</string>
+    <plurals name="git_tab__push_confirm_message">
+        <item quantity="one">%1$d commit is sent to %2$s.</item>
+        <item quantity="other">%1$d commits are sent to %2$s.</item>
+    </plurals>
+    <string name="git_tab__push_confirm_message_unknown">Your commits are sent to %1$s.</string>
 </resources>

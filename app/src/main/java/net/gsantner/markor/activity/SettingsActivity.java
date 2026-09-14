@@ -208,6 +208,14 @@ public class SettingsActivity extends MarkorBaseActivity {
                 updateSummary(R.string.pref_key__file_description_format, fileDescFormat);
             }
 
+            // Settings > Git: the identity the commit dialog stores, shown where it can be corrected.
+            final String gitAuthorName = _appSettings.getGitAuthorName();
+            final String gitAuthorEmail = _appSettings.getGitAuthorEmail();
+            updateSummary(R.string.pref_key__git_author_name,
+                    gitAuthorName.isEmpty() ? getString(R.string.git_settings__author_not_set) : gitAuthorName);
+            updateSummary(R.string.pref_key__git_author_email,
+                    gitAuthorEmail.isEmpty() ? getString(R.string.git_settings__author_not_set) : gitAuthorEmail);
+
             setPreferenceVisible(R.string.pref_key__is_multi_window_enabled, Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP);
 
             setPreferenceVisible(R.string.pref_key__set_encryption_password, Build.VERSION.SDK_INT >= Build.VERSION_CODES.M);
