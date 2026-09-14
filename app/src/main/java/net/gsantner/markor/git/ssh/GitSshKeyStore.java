@@ -460,13 +460,32 @@ public final class GitSshKeyStore {
             throw new GitSshKeyException(GitSshKeyException.Reason.UNREADABLE_KEY,
                     "The key carries no usable public key");
         }
-        return new GitSshKey("", name, typeOf(pair), Math.max(0, pair.getKeySize()), line, fingerprint,
+        final GitSshKey.Type type = typeOf(pair);
+        return new GitSshKey("", name, type, bitsOf(type, pair.getKeySize()), line, fingerprint,
                 System.currentTimeMillis(), false);
     }
 
     private static String comment(final KeyPair pair, final String name) {
         final String stored = GitSshPublicKeys.sanitizeComment(pair.getPublicKeyComment());
         return stored.isEmpty() ? GitSshPublicKeys.sanitizeComment(name) : stored;
+    }
+
+    /**
+     * JSch reports a key size in bits for RSA and ECDSA but in <i>bytes</i> for the EdDSA types
+     * ({@code KeyPairEd25519.getKeySize()} returns 32), and the UI would show "ED25519 32" next to
+     * an {@code ssh-keygen} that says 256. Anything implausibly small for a key is read as bytes.
+     *
+     * @param keySize what {@link KeyPair#getKeySize()} returned
+     * @return the size in bits, or 0 when there is none to report
+     */
+    static int bitsOf(final GitSshKey.Type type, final int keySize) {
+        if (keySize <= 0) {
+            return 0;
+        }
+        if ((type == GitSshKey.Type.ED25519 || type == GitSshKey.Type.UNKNOWN) && keySize <= 64) {
+            return keySize * 8;
+        }
+        return keySize;
     }
 
     private static GitSshKey.Type typeOf(final KeyPair pair) {
