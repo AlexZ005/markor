@@ -58,8 +58,8 @@ public final class GitUiText {
         switch (problem) {
             case EMPTY:
                 return context.getString(R.string.git_error__url_empty);
-            case SSH_NOT_SUPPORTED:
-                return context.getString(R.string.git_error__url_ssh);
+            case SSH_USER_MISSING:
+                return context.getString(R.string.git_error__url_ssh_user);
             case CLEARTEXT_HTTP:
                 return context.getString(R.string.git_error__url_http);
             case UNSUPPORTED_SCHEME:

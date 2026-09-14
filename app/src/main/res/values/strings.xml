@@ -580,9 +580,9 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_error__auth_failed">Check username and token</string>
     <string name="git_error__network">Cannot reach host</string>
     <string name="git_error__url_empty">Enter a remote URL</string>
-    <string name="git_error__url_ssh">SSH remotes are not supported yet. Use an https:// URL.</string>
+    <string name="git_error__url_ssh_user">SSH addresses need the user name the server logs you in as, for example git@github.com:me/notes.git</string>
     <string name="git_error__url_http">Plain http:// is not allowed because the token would be sent unencrypted. Use https://.</string>
-    <string name="git_error__url_scheme">Only https:// remotes are supported</string>
+    <string name="git_error__url_scheme">Only https:// and SSH remotes are supported</string>
     <string name="git_error__url_password">Remove the user name and token from the URL — they would be stored in plain text. Enter them in the fields below instead.</string>
     <string name="git_error__url_malformed">This is not a valid URL</string>
     <string name="git_error__username_required">Enter the username that belongs to the token</string>

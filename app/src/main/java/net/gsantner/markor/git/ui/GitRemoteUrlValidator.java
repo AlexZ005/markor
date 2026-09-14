@@ -7,21 +7,29 @@
 #########################################################*/
 package net.gsantner.markor.git.ui;
 
+import net.gsantner.markor.git.GitRemoteUrlPolicy;
+
 import org.eclipse.jgit.transport.URIish;
 
 import java.net.URISyntaxException;
 import java.util.Locale;
 
 /**
- * What the remote-setup and clone dialogs accept as a remote URL (roadmap decision D4: HTTPS with a
- * personal access token; SSH is phase 8.1). Plain Java with no Android types, so the rules are
- * covered by JVM unit tests; the caller maps {@link Problem} to a string resource.
+ * What the remote-setup and clone dialogs accept as a remote URL: {@code https://} with a personal
+ * access token, and — since roadmap task 8.1c — SSH with a key (decision D4 as revised by
+ * {@code doc/adr/0002-ssh-on-android.md}). Plain Java with no Android types, so the rules are covered
+ * by JVM unit tests; the caller maps {@link Problem} to a string resource.
  * <p>
- * Only {@code https://} passes. {@code ssh://} and the scp-like {@code git@host:path} form are
- * refused because there is no SSH transport in the app yet, and plain {@code http://} is refused
- * because it would send the token in clear text (roadmap open question 4 — blocked until that is
- * decided). A trailing {@code .git} and surrounding whitespace are fine; a password embedded in the
- * URL is not, since {@code GitService} rejects such URLs and it would end up in {@code .git/config}.
+ * A valid result names its {@link Result#getTransport() transport}, which is what tells the dialogs
+ * whether to ask for a user name and token or for an SSH key. Plain {@code http://} is refused
+ * because it would send the token in clear text, and so is every other scheme.
+ * <p>
+ * <b>Userinfo.</b> For https any userinfo at all is refused: the form GitHub's instructions produce
+ * is {@code https://<token>@github.com/me/notes.git}, where the token <i>is</i> the user name, and it
+ * would end up in {@code .git/config} in the notebook folder. For SSH the opposite holds — the user
+ * name is not a secret but the login name the server needs, so exactly one plain name is required and
+ * a password is refused. Both readings live in {@link GitRemoteUrlPolicy}, which the remote
+ * operations themselves consult, so the dialog and the point of use cannot drift apart.
  */
 public final class GitRemoteUrlValidator {
 
@@ -31,18 +39,23 @@ public final class GitRemoteUrlValidator {
         NONE,
         /** Nothing was entered. */
         EMPTY,
-        /** {@code ssh://}, {@code git+ssh://} or the scp-like {@code git@host:path} form. */
-        SSH_NOT_SUPPORTED,
+        /**
+         * An SSH URL without the login name: {@code github.com:me/notes.git} or
+         * {@code ssh://github.com/me/notes.git}. Android has no {@code ~/.ssh/config} and no login
+         * name to default to, so the name has to be written out ({@code git@…}).
+         */
+        SSH_USER_MISSING,
         /** Plain {@code http://}: the token would travel unencrypted. */
         CLEARTEXT_HTTP,
-        /** Any scheme other than https, or no scheme at all. */
+        /** Any scheme other than https and ssh, or no scheme at all. */
         UNSUPPORTED_SCHEME,
         /**
          * {@code https://user:password@host/...}, {@code https://token@host/...} or
          * {@code https://:token@host/...}: credentials in the URL end up in {@code .git/config}.
+         * For SSH: a password behind the user name, or a user name that is not a plain login name.
          */
         CONTAINS_PASSWORD,
-        /** https, but not parsable or without a host. */
+        /** Not parsable, or without a host. */
         MALFORMED
     }
 
@@ -51,11 +64,13 @@ public final class GitRemoteUrlValidator {
         private final Problem _problem;
         private final String _url;
         private final String _host;
+        private final GitRemoteUrlPolicy.Transport _transport;
 
-        Result(final Problem problem, final String url, final String host) {
+        Result(final Problem problem, final String url, final String host, final GitRemoteUrlPolicy.Transport transport) {
             _problem = problem;
             _url = url;
             _host = host;
+            _transport = transport;
         }
 
         public Problem getProblem() {
@@ -76,10 +91,24 @@ public final class GitRemoteUrlValidator {
             return _host;
         }
 
+        /**
+         * @return {@link GitRemoteUrlPolicy.Transport#HTTPS} or
+         * {@link GitRemoteUrlPolicy.Transport#SSH} for a valid URL, otherwise {@code null}. The
+         * dialogs ask for a token for the first and for a key for the second.
+         */
+        public GitRemoteUrlPolicy.Transport getTransport() {
+            return _transport;
+        }
+
+        /** @return {@code true} when this URL authenticates with an SSH key rather than a token */
+        public boolean isSsh() {
+            return _transport == GitRemoteUrlPolicy.Transport.SSH;
+        }
+
         @Override
         public String toString() {
             // Deliberately without the URL: it is user input that may carry userinfo.
-            return "GitRemoteUrlValidator.Result{" + _problem + "}";
+            return "GitRemoteUrlValidator.Result{" + _problem + ", " + _transport + "}";
         }
     }
 
@@ -93,59 +122,92 @@ public final class GitRemoteUrlValidator {
     public static Result validate(final String input) {
         final String url = input == null ? "" : input.trim();
         if (url.isEmpty()) {
-            return new Result(Problem.EMPTY, url, null);
+            return problem(Problem.EMPTY, url);
         }
         if (containsWhitespace(url)) {
-            return new Result(Problem.MALFORMED, url, null);
+            return problem(Problem.MALFORMED, url);
         }
 
         final int schemeEnd = url.indexOf("://");
         if (schemeEnd < 0) {
             // No scheme: "git@github.com:me/notes.git" and "github.com:me/notes" are the scp-like SSH form.
-            return new Result(looksScpLike(url) ? Problem.SSH_NOT_SUPPORTED : Problem.UNSUPPORTED_SCHEME, url, null);
+            return GitRemoteUrlPolicy.looksScpLike(url) ? validateSsh(url, url, true) : problem(Problem.UNSUPPORTED_SCHEME, url);
         }
 
         final String scheme = url.substring(0, schemeEnd).toLowerCase(Locale.ROOT);
         if (scheme.isEmpty()) {
-            return new Result(Problem.MALFORMED, url, null);
+            return problem(Problem.MALFORMED, url);
         }
-        if ("ssh".equals(scheme) || scheme.endsWith("+ssh") || scheme.startsWith("ssh+")) {
-            return new Result(Problem.SSH_NOT_SUPPORTED, url, null);
+        if (GitRemoteUrlPolicy.isSshScheme(scheme)) {
+            // URIish only recognises a lower-case scheme; the stored URL keeps what the user typed.
+            return validateSsh(url, scheme + url.substring(schemeEnd), false);
         }
         if ("http".equals(scheme)) {
-            return new Result(Problem.CLEARTEXT_HTTP, url, null);
+            return problem(Problem.CLEARTEXT_HTTP, url);
         }
         if (!"https".equals(scheme)) {
-            return new Result(Problem.UNSUPPORTED_SCHEME, url, null);
+            return problem(Problem.UNSUPPORTED_SCHEME, url);
         }
 
         if (hasUserinfo(url.substring(schemeEnd + 3))) {
-            return new Result(Problem.CONTAINS_PASSWORD, url, null);
+            return problem(Problem.CONTAINS_PASSWORD, url);
         }
 
         // URIish only recognises a lower-case scheme, and it is what GitCredentialStore.hostKey parses with.
-        final URIish parsed;
-        try {
-            parsed = new URIish(scheme + url.substring(schemeEnd));
-        } catch (URISyntaxException e) {
-            return new Result(Problem.MALFORMED, url, null);
+        final URIish parsed = parse(scheme + url.substring(schemeEnd));
+        if (parsed == null) {
+            return problem(Problem.MALFORMED, url);
         }
         if (parsed.getPass() != null && !parsed.getPass().isEmpty()) {
-            return new Result(Problem.CONTAINS_PASSWORD, url, null);
+            return problem(Problem.CONTAINS_PASSWORD, url);
         }
-        final String host = parsed.getHost() == null ? "" : parsed.getHost().trim().toLowerCase(Locale.ROOT);
+        final String host = hostOf(parsed);
         if (host.isEmpty()) {
-            return new Result(Problem.MALFORMED, url, null);
+            return problem(Problem.MALFORMED, url);
         }
-        return new Result(Problem.NONE, url, host);
+        return new Result(Problem.NONE, url, host, GitRemoteUrlPolicy.Transport.HTTPS);
     }
 
     /**
-     * Any userinfo at all is refused, not just a {@code user:password@} pair. The form GitHub's own
-     * instructions produce is {@code https://<token>@github.com/me/notes.git}, where the token is the
-     * <i>user name</i>; accepting it would write the token into {@code .git/config}, which sits in the
-     * notebook folder on shared storage. The username belongs in the field below the URL, from where
-     * it goes to the Keystore.
+     * The SSH spellings. The rules are {@link GitRemoteUrlPolicy}'s, asked one at a time so that each
+     * refusal can be named: the policy hands back one sentence, while the dialogs want to put a
+     * different error on a different field depending on what is wrong.
+     *
+     * @param forParsing the same URL with a lower-cased scheme, which is all {@code URIish} accepts
+     * @param scpLike    {@code true} for {@code user@host:path}, {@code false} for {@code ssh://…}
+     */
+    private static Result validateSsh(final String url, final String forParsing, final boolean scpLike) {
+        final String authority = GitRemoteUrlPolicy.sshAuthority(url, scpLike);
+        if (authority == null || authority.isEmpty()) {
+            return problem(Problem.MALFORMED, url);
+        }
+        final int at = authority.lastIndexOf('@');
+        if (at < 0) {
+            return problem(Problem.SSH_USER_MISSING, url);
+        }
+        if (!GitRemoteUrlPolicy.isPlainSshUser(authority.substring(0, at))) {
+            return problem(Problem.CONTAINS_PASSWORD, url);
+        }
+        final URIish parsed = parse(forParsing);
+        if (parsed == null) {
+            return problem(Problem.MALFORMED, url);
+        }
+        if (parsed.getPass() != null && !parsed.getPass().isEmpty()) {
+            return problem(Problem.CONTAINS_PASSWORD, url);
+        }
+        final String host = hostOf(parsed);
+        if (host.isEmpty() || parsed.getPath() == null || parsed.getPath().isEmpty()) {
+            return problem(Problem.MALFORMED, url);
+        }
+        return new Result(Problem.NONE, url, host, GitRemoteUrlPolicy.Transport.SSH);
+    }
+
+    /**
+     * Any userinfo at all is refused for https, not just a {@code user:password@} pair. The form
+     * GitHub's own instructions produce is {@code https://<token>@github.com/me/notes.git}, where the
+     * token is the <i>user name</i>; accepting it would write the token into {@code .git/config},
+     * which sits in the notebook folder on shared storage. The username belongs in the field below
+     * the URL, from where it goes to the Keystore.
      * <p>
      * The authority is inspected directly rather than through {@code URIish}, which reports neither a
      * user nor a host for {@code https://:token@host/x} and would let that spelling through.
@@ -164,6 +226,22 @@ public final class GitRemoteUrlValidator {
         return afterScheme.lastIndexOf('@', end - 1) >= 0;
     }
 
+    private static URIish parse(final String url) {
+        try {
+            return new URIish(url);
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    private static String hostOf(final URIish parsed) {
+        return parsed.getHost() == null ? "" : parsed.getHost().trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static Result problem(final Problem problem, final String url) {
+        return new Result(problem, url, null, null);
+    }
+
     private static boolean containsWhitespace(final String s) {
         for (int i = 0; i < s.length(); i++) {
             if (Character.isWhitespace(s.charAt(i))) {
@@ -171,21 +249,5 @@ public final class GitRemoteUrlValidator {
             }
         }
         return false;
-    }
-
-    /**
-     * The scp-like syntax git understands without a scheme: {@code [user@]host:path}, where the part
-     * before the colon carries no slash (otherwise it is a plain relative path such as {@code a/b:c}).
-     */
-    private static boolean looksScpLike(final String url) {
-        if (url.startsWith("/") || url.startsWith(".")) {
-            return false;
-        }
-        final int colon = url.indexOf(':');
-        if (colon <= 0 || colon == url.length() - 1) {
-            return false;
-        }
-        final String before = url.substring(0, colon);
-        return before.indexOf('/') < 0 && !before.isEmpty();
     }
 }
