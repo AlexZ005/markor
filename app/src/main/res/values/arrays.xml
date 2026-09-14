@@ -36,6 +36,7 @@
         <item translatable="false">@string/notebook</item>
         <item translatable="false">@string/todo</item>
         <item translatable="false">@string/quicknote</item>
+        <item translatable="false">@string/git</item>
     </string-array>
 
     <string-array name="pref_arrdisp__search_depth" translatable="false">
