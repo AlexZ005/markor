@@ -643,14 +643,11 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_tab__offline">Offline</string>
     <string name="git_tab__folder_storage_access">Folders on removable storage cannot hold a git repository. Choose a folder in the internal storage.</string>
     <string name="git_tab__folder_gone">%1$s is no longer there. Remove it from the list or restore the folder.</string>
-    <string name="git_tab__working">Working\u2026</string>
     <string name="git_tab__pulling">Pulling\u2026</string>
     <string name="git_tab__pushing">Pushing\u2026</string>
     <string name="git_tab__fetching">Fetching\u2026</string>
-    <string name="git_tab__refreshing">Reading repository\u2026</string>
     <string name="git_tab__initializing">Creating repository\u2026</string>
     <string name="git_tab__cancelled">Cancelled</string>
-    <string name="git_tab__pull_up_to_date">Already up to date</string>
     <string name="git_tab__pulled">Pulled</string>
     <string name="git_tab__push_up_to_date">The remote is already up to date</string>
     <plurals name="git_tab__pushed">
@@ -666,7 +663,4 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_tab__conflicts_message">These files have conflict markers and are listed under Changes:\n\n%1$s</string>
     <string name="git_tab__dirty_title">Commit first</string>
     <string name="git_tab__dirty_message">The pull would overwrite your uncommitted changes to:\n\n%1$s</string>
-    <string name="git_tab__no_remote_title">No remote yet</string>
-    <string name="git_tab__no_remote_message">This repository has no remote. Add one to pull and push.</string>
-    <string name="git_tab__set_up_remote">Set up remote</string>
 </resources>

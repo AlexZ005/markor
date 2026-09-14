@@ -34,8 +34,9 @@ public class GitTabStateTest {
     }
 
     @Test
-    public void anActiveRepositoryWinsOverAForgottenPickedFolder() {
-        assertThat(GitTabState.select(REPO, FOLDER)).isEqualTo(GitTabState.REPOSITORY_OPEN);
+    public void aJustPickedFolderWinsOverAnOpenRepository() {
+        // "Add folder…" in the repository switcher has to reach initialize/clone from an open repo.
+        assertThat(GitTabState.select(REPO, FOLDER)).isEqualTo(GitTabState.FOLDER_NOT_A_REPOSITORY);
     }
 
     @Test
