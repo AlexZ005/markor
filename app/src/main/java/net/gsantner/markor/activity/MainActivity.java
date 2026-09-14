@@ -433,7 +433,11 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
         if (pos == 0) return getFileBrowserTitle();
         if (pos == 1) return getString(R.string.todo);
         if (pos == 2) return getString(R.string.quicknote);
-        if (pos == 3) return getString(R.string.git);
+        if (pos == 3) {
+            // The Git tab shows the open repository's name; GitFragment returns null when none is.
+            final String repo = _git != null ? _git.getTabTitle() : null;
+            return repo != null && !repo.isEmpty() ? repo : getString(R.string.git);
+        }
         return "";
     }
 
