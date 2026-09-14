@@ -717,7 +717,15 @@ public class GitFragment extends MarkorBaseFragment {
                 _active.setDefaultBranch(branch);
                 changed = true;
             }
-            if (remote != null && !remote.equals(_active.getRemoteUrl())) {
+            // Deliberately NOT for an SSH remote. This copy is what GitSshRemoteTrust weighs the
+            // URL in .git/config against before an SSH key is offered, and .git/config sits on
+            // shared storage where any app can rewrite it (security review, task 7.5). Mirroring it
+            // here would make the record follow whatever was written there, which is the opposite of
+            // a record: an https remote rewritten to git@attacker.example: would be adopted on the
+            // next refresh and handed the user's key. An SSH remote therefore only becomes this
+            // repository's remote when the user saves it in ⋮ ‣ Remote… or clones it.
+            if (remote != null && !remote.equals(_active.getRemoteUrl())
+                    && !GitRemoteUrlPolicy.decide(remote).isSsh()) {
                 _active.setRemoteUrl(remote);
                 changed = true;
             }
@@ -1462,7 +1470,8 @@ public class GitFragment extends MarkorBaseFragment {
         if (_repoRoot == null) {
             return;
         }
-        final RemoteSetupDialog dialog = RemoteSetupDialog.newInstance(_repoRoot.getAbsolutePath());
+        final RemoteSetupDialog dialog = RemoteSetupDialog.newInstance(_repoRoot.getAbsolutePath(),
+                _info == null ? null : _info.getRemoteUrl());
         dialog.setListener((repoPath, remoteUrl) -> refreshThen(retry));
         dialog.show(getChildFragmentManager(), RemoteSetupDialog.FRAGMENT_TAG);
     }
@@ -1471,7 +1480,8 @@ public class GitFragment extends MarkorBaseFragment {
         if (_repoRoot == null) {
             return;
         }
-        final RemoteSetupDialog dialog = RemoteSetupDialog.newInstance(_repoRoot.getAbsolutePath());
+        final RemoteSetupDialog dialog = RemoteSetupDialog.newInstance(_repoRoot.getAbsolutePath(),
+                _info == null ? null : _info.getRemoteUrl());
         dialog.setListener((repoPath, remoteUrl) -> refresh(false));
         dialog.show(getChildFragmentManager(), RemoteSetupDialog.FRAGMENT_TAG);
     }

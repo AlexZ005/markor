@@ -367,10 +367,11 @@ public class CloneDialog extends DialogFragment {
         final GitSshKey key = store == null ? null : (_sshKeyId == null ? store.getDefault() : store.get(_sshKeyId));
         if (key == null) {
             _sshKeyText.setText(_sshKeyId == null
-                    ? R.string.git_ssh__key_default_none : R.string.git_ssh__key_missing);
+                    ? getString(R.string.git_ssh_keys__repo_key_default_none)
+                    : getString(R.string.git_ssh_keys__repo_key_missing));
         } else {
             _sshKeyText.setText(_sshKeyId == null
-                    ? getString(R.string.git_ssh__key_default, key.getName())
+                    ? getString(R.string.git_ssh_keys__repo_key_default, key.getName())
                     : key.getName() + "\n" + key.describe());
         }
     }
