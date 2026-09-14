@@ -38,3 +38,14 @@
 # Missing-class warnings from JGit that -ignorewarnings (above, for flexmark's java.awt) already hides and that are
 # genuinely absent on Android: java.lang.management/javax.management (JMX in Monitoring, WindowCache, GC$PidLock) and
 # org.ietf.jgss (Kerberos HTTP auth). No keep rule can help; the service layer must avoid those paths (gc.auto=0).
+
+# ---- Git tab: SSH over JSch (doc/adr/0002-ssh-on-android.md)
+# Every cipher, MAC, key exchange, signature, hash, random and key-pair generator JSch uses is named
+# as a *string* in JSch's config map and instantiated with Class.forName(...).getDeclaredConstructor()
+# .newInstance(). R8 sees no reference to any of them. Without this rule the release build loads keys
+# and generates them fine, but the first connection dies in the key exchange with
+#   TransportException: git@github.com:...: java.lang.ClassNotFoundException: com.jcraft.jsch.DHEC256
+# and every row of section 5 and 6 of the spike screen fails. Keeping the no-argument constructors is
+# enough: the interfaces (Cipher, HASH, Signature, KeyExchange, UserAuth, KeyPairGen*) are referenced
+# from JSch's own code, so the implementations' overriding methods are kept with the classes.
+-keep class com.jcraft.jsch.** { <init>(); }
