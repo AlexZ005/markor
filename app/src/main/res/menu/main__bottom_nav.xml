@@ -27,7 +27,7 @@
         android:title="@string/quicknote" />
 
     <item
-        android:id="@+id/nav_more"
-        android:icon="@drawable/ic_favorite_black_24dp"
-        android:title="@string/more" />
+        android:id="@+id/nav_git"
+        android:icon="@drawable/ic_git_branch_black_24dp"
+        android:title="@string/git" />
 </menu>

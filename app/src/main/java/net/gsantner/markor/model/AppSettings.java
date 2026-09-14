@@ -806,6 +806,8 @@ public class AppSettings extends GsSharedPreferencesPropertyBackend {
                 return R.id.nav_todo;
             case 2:
                 return R.id.nav_quicknote;
+            case 3:
+                return R.id.nav_git;
         }
         return R.id.nav_notebook;
     }

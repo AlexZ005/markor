@@ -39,6 +39,7 @@ import net.gsantner.markor.R;
 import net.gsantner.markor.format.FormatRegistry;
 import net.gsantner.markor.frontend.NewFileDialog;
 import net.gsantner.markor.frontend.filebrowser.MarkorFileBrowserFactory;
+import net.gsantner.markor.git.ui.GitFragment;
 import net.gsantner.markor.model.Document;
 import net.gsantner.markor.util.MarkorContextUtils;
 import net.gsantner.markor.widget.TodoWidgetProvider;
@@ -66,7 +67,7 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
     private SectionsPagerAdapter _sectionsAdapter;
     private GsFileBrowserFragment _notebook;
     private DocumentEditAndViewFragment _quicknote, _todo;
-    private MoreFragment _more;
+    private GitFragment _git;
     private FloatingActionButton _fab;
 
     private MarkorContextUtils _cu;
@@ -169,7 +170,7 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
             manager.putFragment(outState, Integer.toString(R.id.nav_notebook), _notebook);
             manager.putFragment(outState, Integer.toString(R.id.nav_quicknote), _quicknote);
             manager.putFragment(outState, Integer.toString(R.id.nav_todo), _todo);
-            manager.putFragment(outState, Integer.toString(R.id.nav_more), _more);
+            manager.putFragment(outState, Integer.toString(R.id.nav_git), _git);
         } catch (NullPointerException | IllegalStateException ignored) {
             Log.d(MainActivity.class.getName(), "Child fragments null in onSaveInstanceState()");
         }
@@ -189,13 +190,13 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
             _notebook = (GsFileBrowserFragment) manager.getFragment(savedInstanceState, Integer.toString(R.id.nav_notebook));
             _quicknote = (DocumentEditAndViewFragment) manager.getFragment(savedInstanceState, Integer.toString(R.id.nav_quicknote));
             _todo = (DocumentEditAndViewFragment) manager.getFragment(savedInstanceState, Integer.toString(R.id.nav_todo));
-            _more = (MoreFragment) manager.getFragment(savedInstanceState, Integer.toString(R.id.nav_more));
+            _git = (GitFragment) manager.getFragment(savedInstanceState, Integer.toString(R.id.nav_git));
 
             if (_sectionsAdapter != null) {
                 _sectionsAdapter.restoreFragment(tabIdToPos(R.id.nav_notebook));
                 _sectionsAdapter.restoreFragment(tabIdToPos(R.id.nav_quicknote));
                 _sectionsAdapter.restoreFragment(tabIdToPos(R.id.nav_todo));
-                _sectionsAdapter.restoreFragment(tabIdToPos(R.id.nav_more));
+                _sectionsAdapter.restoreFragment(tabIdToPos(R.id.nav_git));
             }
 
             final NewFileDialog nf = (NewFileDialog) manager.findFragmentByTag(NewFileDialog.FRAGMENT_TAG);
@@ -416,7 +417,7 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
         if (id == R.id.nav_notebook) return 0;
         if (id == R.id.nav_todo) return 1;
         if (id == R.id.nav_quicknote) return 2;
-        if (id == R.id.nav_more) return 3;
+        if (id == R.id.nav_git) return 3;
         return 0;
     }
 
@@ -432,7 +433,7 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
         if (pos == 0) return getFileBrowserTitle();
         if (pos == 1) return getString(R.string.todo);
         if (pos == 2) return getString(R.string.quicknote);
-        if (pos == 3) return getString(R.string.more);
+        if (pos == 3) return getString(R.string.git);
         return "";
     }
 
@@ -440,7 +441,7 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
         if (pos == 0) return _notebook;
         if (pos == 1) return _todo;
         if (pos == 2) return _quicknote;
-        if (pos == 3) return _more;
+        if (pos == 3) return _git;
         return null;
     }
 
@@ -543,8 +544,8 @@ public class MainActivity extends MarkorBaseActivity implements GsFileBrowserFra
                 frag = _quicknote = DocumentEditAndViewFragment.newInstance(new Document(_appSettings.getQuickNoteFile()), -1, false);
             } else if (id == R.id.nav_todo) {
                 frag = _todo = DocumentEditAndViewFragment.newInstance(new Document(_appSettings.getTodoFile()), -1, false);
-            } else if (id == R.id.nav_more) {
-                frag = _more = MoreFragment.newInstance();
+            } else if (id == R.id.nav_git) {
+                frag = _git = GitFragment.newInstance();
             } else {
                 frag = _notebook = GsFileBrowserFragment.newInstance();
             }
