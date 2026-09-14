@@ -5,6 +5,8 @@
       adb shell am start -n net.gsantner.markor_test/net.gsantner.markor.git.spike.GitSpikeActivity
     - net.gsantner.markor.git.ui.GitUiDebugActivity: opens the Git tab's read-only screens from adb (tasks 6.1/6.2)
     - net.gsantner.markor.git.test.GitRemoteDialogsTestActivity: the clone / remote-setup dialogs (tasks 5.1/5.2)
+    - net.gsantner.markor.git.spike.GitSshSpikeActivity: SSH feasibility table (task 8.1a), start with
+      adb shell am start -n net.gsantner.markor_test/net.gsantner.markor.git.spike.GitSshSpikeActivity
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -23,6 +25,11 @@
             android:name="net.gsantner.markor.git.spike.GitSpikeActivity"
             android:exported="true"
             android:label="Git spike"
+            android:theme="@style/AppTheme.Unified" />
+        <activity
+            android:name="net.gsantner.markor.git.spike.GitSshSpikeActivity"
+            android:exported="true"
+            android:label="Git SSH spike"
             android:theme="@style/AppTheme.Unified" />
         <activity
             android:name="net.gsantner.markor.git.ui.GitUiDebugActivity"
