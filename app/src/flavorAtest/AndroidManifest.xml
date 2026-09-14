@@ -4,6 +4,7 @@
     - net.gsantner.markor.git.spike.GitSpikeActivity: JGit feasibility table (task 1.2), start with
       adb shell am start -n net.gsantner.markor_test/net.gsantner.markor.git.spike.GitSpikeActivity
     - net.gsantner.markor.git.ui.GitUiDebugActivity: opens the Git tab's read-only screens from adb (tasks 6.1/6.2)
+    - net.gsantner.markor.git.test.GitRemoteDialogsTestActivity: the clone / remote-setup dialogs (tasks 5.1/5.2)
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
@@ -12,6 +13,11 @@
             android:name="net.gsantner.markor.git.test.GitCommitDialogTestActivity"
             android:exported="true"
             android:label="Git commit dialog (test)"
+            android:theme="@style/AppTheme.Unified" />
+        <activity
+            android:name="net.gsantner.markor.git.test.GitRemoteDialogsTestActivity"
+            android:exported="true"
+            android:label="Git remote dialogs (test)"
             android:theme="@style/AppTheme.Unified" />
         <activity
             android:name="net.gsantner.markor.git.spike.GitSpikeActivity"
