@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+/*#######################################################
+ *
+ *   Maintained 2026 by the Markor fork (AlexZ005/markor), Git tab
+ *   License of this file: Apache 2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+#########################################################*/
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="64dp"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="10dp">
+
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="@string/git_settings__ssh_key"
+        android:src="@drawable/ic_vpn_key_black_24dp"
+        app:tint="@color/secondary_text" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/git_ssh_keys__item_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/primary_text"
+            android:textSize="16sp"
+            tools:text="Phone" />
+
+        <TextView
+            android:id="@+id/git_ssh_keys__item_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/secondary_text"
+            android:textSize="12sp"
+            tools:text="RSA 4096 · SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" />
+
+        <TextView
+            android:id="@+id/git_ssh_keys__item_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/secondary_text"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="Passphrase needed for each sync" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/git_ssh_keys__item_default"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:text="@string/git_ssh_keys__default_badge"
+        android:textAllCaps="true"
+        android:textColor="?attr/colorAccent"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+</LinearLayout>

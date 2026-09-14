@@ -102,6 +102,11 @@
             android:parentActivityName=".activity.MainActivity" />
 
         <activity
+            android:name=".git.ui.SshKeyManagerActivity"
+            android:label="@string/git_ssh_keys__title"
+            android:parentActivityName=".activity.SettingsActivity" />
+
+        <activity
             android:name=".activity.StoragePermissionActivity"
             android:label="@string/permissions"
             android:parentActivityName=".activity.MainActivity" />
