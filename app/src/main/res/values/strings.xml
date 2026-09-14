@@ -634,6 +634,8 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_tab__no_commits">No commits yet</string>
     <string name="git_tab__loading">Loading\u2026</string>
     <string name="git_tab__detached_head">detached HEAD</string>
+    <string name="git_tab__detached_head_at">detached at %1$s</string>
+    <string name="git_tab__detached_head_hint">No branch is checked out, so there is nothing to pull into or push from. Check out a branch with another git client; committing still works.</string>
     <string name="git_tab__no_branch_yet">no commits yet</string>
     <string name="git_tab__never_fetched">Never fetched</string>
     <string name="git_tab__synced_just_now">Synced just now</string>
