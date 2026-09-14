@@ -87,7 +87,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="@string/git_ssh__key"
+                    android:text="@string/git_ssh_keys__repo_key"
                     android:textAppearance="@style/TextAppearance.AppCompat.Caption" />
 
                 <LinearLayout
@@ -108,7 +108,7 @@
                         style="?android:attr/borderlessButtonStyle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/git_ssh__key_choose" />
+                        android:text="@string/select" />
                 </LinearLayout>
 
                 <TextView
