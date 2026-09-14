@@ -115,7 +115,7 @@ final class JGitRemoteOps {
             if (remote == null) {
                 return GitResult.failed(NO_REMOTE);
             }
-            final GitResult<GitAheadBehind> refused = remoteRefusal(repo, remote);
+            final GitResult<GitAheadBehind> refused = remoteRefusal(repo, remote, false);
             if (refused != null) {
                 return refused;
             }
@@ -210,7 +210,7 @@ final class JGitRemoteOps {
             if (remote == null) {
                 return GitResult.failed(NO_REMOTE);
             }
-            final GitResult<GitRepoInfo> refused = remoteRefusal(repo, remote);
+            final GitResult<GitRepoInfo> refused = remoteRefusal(repo, remote, false);
             if (refused != null) {
                 return refused;
             }
@@ -329,7 +329,7 @@ final class JGitRemoteOps {
             if (repo.resolve(Constants.HEAD) == null) {
                 return GitResult.failed("Nothing to push: the repository has no commits yet");
             }
-            final GitResult<Void> refused = remoteRefusal(repo, remote);
+            final GitResult<Void> refused = remoteRefusal(repo, remote, true);
             if (refused != null) {
                 return refused;
             }
@@ -610,29 +610,57 @@ final class JGitRemoteOps {
      * repository configuration and would then accept any certificate, which turns https back into an
      * open channel for the token.
      *
+     * @param forPush {@code true} for a push, which uses {@code remote.<name>.pushurl} when there is
+     *                one; fetch and pull only ever use {@code remote.<name>.url}
      * @return {@code null} when the operation may proceed, otherwise the failed result to return
      */
-    private static <T> GitResult<T> remoteRefusal(final Repository repo, final String remote) {
+    private static <T> GitResult<T> remoteRefusal(final Repository repo, final String remote, final boolean forPush) {
         final StoredConfig config = repo.getConfig();
         if (!config.getBoolean(HTTP_SECTION, SSL_VERIFY, true)) {
             return GitResult.failed("This repository's configuration turns TLS certificate checking off"
                     + " (http.sslVerify = false). Remove that line from .git/config before syncing.");
         }
-        final List<URIish> uris = new ArrayList<>();
+        final List<URIish> fetchUris;
+        final List<URIish> pushUris;
         try {
             final RemoteConfig remoteConfig = new RemoteConfig(config, remote);
-            uris.addAll(remoteConfig.getURIs());
-            uris.addAll(remoteConfig.getPushURIs());
+            fetchUris = remoteConfig.getURIs();
+            pushUris = remoteConfig.getPushURIs();
         } catch (URISyntaxException e) {
             return GitResult.failed("The remote URL cannot be parsed");
         }
-        if (uris.isEmpty()) {
+        // What this operation will actually connect to: JGit prefers pushurl for a push and falls
+        // back to url only when there is none.
+        final List<URIish> used = forPush && !pushUris.isEmpty() ? pushUris : fetchUris;
+        if (used.isEmpty()) {
             return GitResult.failed(NO_REMOTE);
         }
-        for (final URIish uri : uris) {
+        for (final URIish uri : used) {
             final String refusal = GitRemoteUrlPolicy.refusalFor(uri.toString());
             if (refusal != null) {
                 return GitResult.failed(refusal);
+            }
+        }
+        return forPush ? JGitRemoteOps.<T>divergingPushUrlRefusal(fetchUris, pushUris) : null;
+    }
+
+    /**
+     * {@code remote.<name>.pushurl} is where a push really goes: JGit prefers it over
+     * {@code remote.<name>.url} and falls back only when it is absent. The app never writes one, reads
+     * only {@code url} for {@link GitRepoInfo}, and so shows the <i>fetch</i> URL in the header and in
+     * the "confirm before push" dialog. A {@code pushurl} pointing somewhere else would therefore send
+     * every commit to a host the user was never shown - and one added to a repository on shared
+     * storage by another app is invisible in the UI. Since nothing in the app can put a second
+     * destination there, a diverging one is refused rather than silently honoured.
+     *
+     * @return {@code null} when there is no pushurl, or it names the same place as the fetch URL
+     */
+    private static <T> GitResult<T> divergingPushUrlRefusal(final List<URIish> fetchUris, final List<URIish> pushUris) {
+        for (final URIish push : pushUris) {
+            if (!fetchUris.contains(push)) {
+                return GitResult.failed("This repository's configuration pushes to a different address"
+                        + " than the one shown (remote.<name>.pushurl in .git/config). Remove that line,"
+                        + " or set the remote URL to the address you want to push to.");
             }
         }
         return null;
