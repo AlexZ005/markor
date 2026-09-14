@@ -711,12 +711,7 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_tab__push_confirm_message_unknown">Your commits are sent to %1$s.</string>
     <!-- Sync-conflict warning, once per repository (task 7.3) -->
     <string name="git_sync_warning__title">Do not sync the .git folder</string>
-    <string name="git_sync_warning__message">If a file-sync tool such as Syncthing, Nextcloud or Dropbox also syncs the hidden .git folder inside %1$s, the repository will sooner or later be corrupted: both sides write their own objects and refs, and the sync tool merges them file by file, which git cannot repair.
-
-Pick one of the two:
-
-• Exclude .git from the sync tool (in Syncthing, add \".git\" to the folder\'s ignore patterns), and use Pull and Push here to synchronise.
-• Or keep syncing the folder as before and do not use git on it.</string>
+    <string name="git_sync_warning__message">If a file-sync tool such as Syncthing, Nextcloud or Dropbox also syncs the hidden .git folder inside %1$s, the repository will sooner or later be corrupted: both sides write their own objects and refs, and the sync tool merges them file by file, which git cannot repair.\n\nPick one of the two:\n\n• Exclude .git from the sync tool (in Syncthing, add \".git\" to the folder\'s ignore patterns), and use Pull and Push here to synchronise.\n• Or keep syncing the folder as before and do not use git on it.</string>
     <string name="git_sync_warning__read_doc">Syncthing guide</string>
     <string name="git_sync_warning__understood">Got it</string>
 </resources>
