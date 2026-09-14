@@ -9,9 +9,6 @@ package net.gsantner.markor.git;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.Build;
-
-import androidx.annotation.RequiresApi;
 
 import org.eclipse.jgit.transport.URIish;
 
@@ -79,7 +76,9 @@ public final class GitCredentialStore {
     }
 
     private static Backend createBackend(final Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && context != null) {
+        // The Keystore is available on every supported device since this fork's minSdk is 26; only a
+        // ROM that refuses it, or a call without a context, still ends up memory-only.
+        if (context != null) {
             try {
                 return new KeystoreBackend(context.getApplicationContext() != null ? context.getApplicationContext() : context);
             } catch (RuntimeException e) {
@@ -232,7 +231,6 @@ public final class GitCredentialStore {
      * {@link PasswordStore#storeKey} takes the token as a {@code String}, which is the one place the
      * token exists as an immutable string; it is created for that call only.
      */
-    @RequiresApi(api = Build.VERSION_CODES.M)
     private static final class KeystoreBackend implements Backend {
         private static final String PREFS_NAME = "git_credentials";
         private static final String USER_PREFIX = "user.";

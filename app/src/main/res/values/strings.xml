@@ -526,6 +526,7 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_commit_message_hint">Describe what changed</string>
     <string name="git_commit_message_required">Enter a commit message</string>
     <string name="git_changed_files">Changed files</string>
+    <string name="git_changed_files_count">Changed files (%1$d)</string>
     <string name="git_select_all">Select all</string>
     <string name="git_no_changes">Nothing has changed since the last commit</string>
     <string name="git_loading_changes">Reading changes…</string>
@@ -604,6 +605,8 @@ work. If not, see <https://creativecommons.org/publicdomain/zero/1.0/>.
     <string name="git_open_current_version">Open current version</string>
     <string name="git_file_not_in_working_tree">This file does not exist in the working tree</string>
     <string name="git_binary_file">binary</string>
+    <string name="git_diff_lines_added">+%1$d</string>
+    <string name="git_diff_lines_deleted">-%1$d</string>
 
     <!-- Git tab: the tab itself (tasks 3.4-3.7, 5.4, 5.5) -->
     <string name="git_tab__no_repo_title">No repository yet</string>

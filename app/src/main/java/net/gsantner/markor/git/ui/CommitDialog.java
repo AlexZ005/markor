@@ -7,6 +7,7 @@
 #########################################################*/
 package net.gsantner.markor.git.ui;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Dialog;
 import android.os.Bundle;
@@ -177,6 +178,8 @@ public class CommitDialog extends DialogFragment {
         outState.putStringArrayList(STATE_SELECTED_PATHS, new ArrayList<>(_selection.getSelectedPaths()));
     }
 
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void bindViews(final View root) {
         _subtitle = root.findViewById(R.id.git__commit_dialog__subtitle);
         _messageEdit = root.findViewById(R.id.git__commit_dialog__message);
@@ -231,6 +234,8 @@ public class CommitDialog extends DialogFragment {
                 });
     }
 
+    // The whole list is replaced at once, so there is no finer-grained event to send.
+    @SuppressLint("NotifyDataSetChanged")
     private void onStatusLoaded(final StatusLoad load) {
         final GitResult<List<GitStatusEntry>> status = load.status;
         if (status.getKind() != GitResult.Kind.OK) {

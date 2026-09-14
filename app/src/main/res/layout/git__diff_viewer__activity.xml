@@ -6,6 +6,7 @@
     android:layout_height="match_parent"
     android:background="@color/background"
     android:orientation="vertical"
+    tools:ignore="Overdraw"
     tools:context="net.gsantner.markor.git.ui.DiffViewerActivity">
 
     <com.google.android.material.appbar.AppBarLayout

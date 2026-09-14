@@ -142,6 +142,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
+                android:paddingStart="0dp"
                 android:paddingEnd="8dp">
 
                 <ImageView
@@ -179,6 +180,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
+                android:paddingStart="0dp"
                 android:paddingEnd="8dp"
                 android:singleLine="true"
                 android:textColor="@color/secondary_text"
@@ -206,6 +208,7 @@
                     android:textSize="12sp"
                     tools:text="Receiving objects 42%" />
 
+                <!-- Cancels the running git operation; not a dialog button bar, hence ButtonOrder. -->
                 <Button
                     android:id="@+id/git__fragment__progress_cancel"
                     style="?android:attr/borderlessButtonStyle"
@@ -213,7 +216,8 @@
                     android:layout_height="wrap_content"
                     android:minWidth="0dp"
                     android:text="@android:string/cancel"
-                    android:textSize="13sp" />
+                    android:textSize="13sp"
+                    tools:ignore="ButtonOrder" />
             </LinearLayout>
 
             <ProgressBar
@@ -222,6 +226,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:indeterminate="true"
+                android:paddingStart="0dp"
                 android:paddingEnd="8dp"
                 android:visibility="gone"
                 tools:visibility="visible" />
@@ -257,6 +262,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
+                    android:paddingStart="0dp"
                     android:paddingEnd="4dp"
                     android:textColor="@color/primary_text"
                     android:textSize="13sp"
@@ -303,6 +309,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
+                android:paddingStart="0dp"
                 android:paddingEnd="8dp">
 
                 <Button
